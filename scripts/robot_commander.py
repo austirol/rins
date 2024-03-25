@@ -19,7 +19,7 @@ import time
 
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped, PointStamped
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import Spin, NavigateToPose
 from turtle_tf2_py.turtle_tf2_broadcaster import quaternion_from_euler
@@ -79,13 +79,71 @@ class RobotCommander(Node):
                                                       'initialpose',
                                                       10)
         
+        # marker position listenr
+        self.marker_pos_sub = self.create_subscription(PointStamped, "/marker_pos", self.face_handler, qos_profile_sensor_data)
+        
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.spin_client = ActionClient(self, Spin, 'spin')
         self.undock_action_client = ActionClient(self, Undock, 'undock')
         self.dock_action_client = ActionClient(self, Dock, 'dock')
 
+        # pictures
+        self.face_pos = []
+
         self.get_logger().info(f"Robot commander has been initialized!")
+
+    def cleaner(self):
+        epsilon = 0.50
+        duplicates = []
+        for i, pos1 in enumerate(self.face_pos):
+            for j, pos2 in enumerate(self.face_pos[i+1:]):
+                same = 0
+                for coor in pos1.keys():
+                    if abs(pos1[coor]-pos2[coor]) < epsilon:
+                        same += 1
+                if same == 3:
+                    duplicates.append(j+i+1)
+
+        for i, duplicate in enumerate(duplicates):
+            self.face_pos.pop(duplicate-i)
+
+
+    def face_handler(self, msg):
+        x = msg.point.x
+        y = msg.point.y
+        z = msg.point.z
+        index = len(self.face_pos)
+
+        point = {"x":x, "y":y, "z":z}
+
+        epsilon = 0.50
+
+        if len(self.face_pos) == 0:
+            if len(self.face_pos) == index:
+                self.face_pos.append({})
+            self.face_pos[index] = {"x":x, "y":y, "z":z}
+        else:
+            for i in self.face_pos:
+                self.get_logger().info(f"pridi {x, y, z} {self.face_pos}")
+                same = 0
+                for j in i.keys():
+                    if abs(i[j]-point[j]) < epsilon or abs(i[j]-point[j]) == 0.0:
+                        self.get_logger().info(str(abs(i[j]-point[j])))
+                        same += 1
+                if same != 3:
+                    if len(self.face_pos) == index:
+                        self.face_pos.append({})
+                    self.face_pos[index] = {"x":x, "y":y, "z":z}
+                else:
+                    self.get_logger().info(f"JUHEEEEEJ3: isti je")
+
+        self.get_logger().info(f"JUHEEEJ2: {len(self.face_pos)}")
+
+        self.cleaner()
+
+        # time.sleep(0.1)
+
         
     def destroyNode(self):
         self.nav_to_pose_client.destroy()

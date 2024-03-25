@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -135,6 +136,8 @@ class detect_faces(Node):
 			marker.pose.position.z = float(d[2])
 
 			self.marker_pub.publish(marker)
+
+			# time.sleep(0.1)
 
 def main():
 	print('Face detection node starting.')

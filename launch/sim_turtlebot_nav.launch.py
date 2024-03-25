@@ -37,7 +37,7 @@ ARGUMENTS = [
                           choices=['standard', 'lite'],
                           description='Turtlebot4 Model'),
     DeclareLaunchArgument('map', default_value=PathJoinSubstitution(
-                          [pkg_dis_tutorial3, 'maps', 'map.yaml']),
+                          [pkg_dis_tutorial3, 'maps', 'mapa2.yaml']),
                           description='Full path to map yaml file to load'),
 ]
 

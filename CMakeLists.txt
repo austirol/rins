@@ -29,6 +29,8 @@ install(DIRECTORY
 install(PROGRAMS
   scripts/detect_people.py
   scripts/robot_commander.py
+  scripts/map_goals.py
+  scripts/transform_point.py
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
