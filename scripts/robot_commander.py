@@ -318,76 +318,16 @@ def main(args=None):
     goal_pose.header.frame_id = 'map'
     goal_pose.header.stamp = rc.get_clock().now().to_msg()
     
-    # x=2.23,    y=-1.6
-    goal_pose.pose.position.x = 2.23
-    goal_pose.pose.position.y = -1.6
-    goal_pose.pose.orientation = rc.YawToQuaternion(-1.5)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
+    list_of_points = [[1.0, -2.0, 1.7],[2.23, -1.6, -1.7],[1.0, 0.0, -1.5],[0.3, 3.25, -1.7],[-1.5, 4.5, 0.0],[-1.0, 1.2, -2.75],[1.0, 1.65, -1.7],[-1.55, -0.65, -1.7],[-0.27, -0.27, 0.0]]
 
-    # x=1,  y=-0
-    goal_pose.pose.position.x = 1.0
-    goal_pose.pose.position.y = 0.0
-    goal_pose.pose.orientation = rc.YawToQuaternion(-1.5)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
-
-    # x=0.5,    y=3.25
-    goal_pose.pose.position.x = 0.5
-    goal_pose.pose.position.y = 3.25
-    goal_pose.pose.orientation = rc.YawToQuaternion(-1.5)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
-
-    # x=-1.5, y=4.5
-    goal_pose.pose.position.x = -1.5
-    goal_pose.pose.position.y = 4.5
-    goal_pose.pose.orientation = rc.YawToQuaternion(0.0)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
-
-    # x=-1.55, y=2.1
-    goal_pose.pose.position.x = -1.34
-    goal_pose.pose.position.y = 1.2
-    goal_pose.pose.orientation = rc.YawToQuaternion(-2.75)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
-         
-    # x=1, y=1.65
-    goal_pose.pose.position.x = 1.0
-    goal_pose.pose.position.y = 1.65
-    goal_pose.pose.orientation = rc.YawToQuaternion(-1.5)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
-
-    # x=-1.55, y=-0.65
-    goal_pose.pose.position.x = -1.55
-    goal_pose.pose.position.y = -0.65
-    goal_pose.pose.orientation = rc.YawToQuaternion(-1.5)
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
-    
-    # x=-0.27, y=-0.27
-    goal_pose.pose.position.x = -0.27
-    goal_pose.pose.position.y = -0.27
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.info("Waiting for the task to complete...")
-        time.sleep(1)
+    for i in range(len(list_of_points)):
+        goal_pose.pose.position.x = list_of_points[i][0]
+        goal_pose.pose.position.y = list_of_points[i][1]
+        goal_pose.pose.orientation = list_of_points[i][3]
+        rc.goToPose(goal_pose)
+        while not rc.isTaskComplete():
+            rc.info("Waiting for the task to complete...")
+            time.sleep(1)
     
     rc.destroyNode()
 
