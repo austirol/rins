@@ -42,12 +42,17 @@ class detect_faces(Node):
 		self.pointcloud_sub = self.create_subscription(PointCloud2, "/oakd/rgb/preview/depth/points", self.pointcloud_callback, qos_profile_sensor_data)
 
 		self.marker_pub = self.create_publisher(Marker, marker_topic, QoSReliabilityPolicy.BEST_EFFORT)
+		#self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
 
 		self.model = YOLO("yolov8n.pt")
 
 		self.faces = []
 
+		self.face_pos = []
+
 		self.get_logger().info(f"Node has been initialized! Will publish face markers to {marker_topic}.")
+	
+	
 
 	def rgb_callback(self, data):
 
@@ -90,6 +95,7 @@ class detect_faces(Node):
 			
 		except CvBridgeError as e:
 			print(e)
+					
 
 	def pointcloud_callback(self, data):
 
@@ -136,6 +142,24 @@ class detect_faces(Node):
 			marker.pose.position.z = float(d[2])
 
 			self.marker_pub.publish(marker)
+			
+			# if len(self.face_pos) == 0:
+			# 	self.marker_pub.publish(marker)
+			# 	self.face_pos.append({"x":d[0], "y":d[1], "z":d[2]})
+			# 	# log
+			# 	self.get_logger().info(f"Face detected at: {d}")
+			# else:
+			# 	for i in self.face_pos:
+			# 		if abs(i["x"]-d[0]) < 0.5 and abs(i["y"]-d[1]) < 0.5 and abs(i["z"]-d[2]) < 0.5:
+			# 			# log
+			# 			self.get_logger().info(f"ISTI")
+			# 			break
+			# 	else:
+			# 		self.marker_pub.publish(marker)
+			# 		self.face_pos.append({"x":d[0], "y":d[1], "z":d[2]})
+			# 		time.sleep(0.5)
+			# 		# log
+			# 		self.get_logger().info(f"Face detected at: {d}")
 
 			# time.sleep(0.1)
 

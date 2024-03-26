@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+from visualization_msgs.msg import Marker
 from enum import Enum
 import time
 
@@ -80,7 +81,7 @@ class RobotCommander(Node):
                                                       10)
         
         # marker position listenr
-        self.marker_pos_sub = self.create_subscription(PointStamped, "/marker_pos", self.face_handler, qos_profile_sensor_data)
+        self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
         
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
@@ -111,9 +112,9 @@ class RobotCommander(Node):
 
 
     def face_handler(self, msg):
-        x = msg.point.x
-        y = msg.point.y
-        z = msg.point.z
+        x = msg.pose.position.x
+        y = msg.pose.position.y
+        z = msg.pose.position.z
         index = len(self.face_pos)
 
         point = {"x":x, "y":y, "z":z}
@@ -129,17 +130,20 @@ class RobotCommander(Node):
                 self.get_logger().info(f"pridi {x, y, z} {self.face_pos}")
                 same = 0
                 for j in i.keys():
-                    if abs(i[j]-point[j]) < epsilon or abs(i[j]-point[j]) == 0.0:
+                    if abs(i[j]-point[j]) < epsilon:
                         self.get_logger().info(str(abs(i[j]-point[j])))
                         same += 1
                 if same != 3:
                     if len(self.face_pos) == index:
                         self.face_pos.append({})
                     self.face_pos[index] = {"x":x, "y":y, "z":z}
+                    time.sleep(0.5)
+                    
                 else:
                     self.get_logger().info(f"JUHEEEEEJ3: isti je")
 
         self.get_logger().info(f"JUHEEEJ2: {len(self.face_pos)}")
+        
 
         self.cleaner()
 
@@ -385,7 +389,7 @@ def main(args=None):
         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
         rc.goToPose(goal_pose)
         while not rc.isTaskComplete():
-            rc.info("Waiting for the task to complete...")
+            rc.info("Waiting for the task to complete... LOL")
             rc.cleaner()
             time.sleep(1)
     

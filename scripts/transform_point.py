@@ -38,13 +38,14 @@ class TranformPoints(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # For publishing the markers
-        self.marker_pub = self.create_publisher(PointStamped, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
+        self.marker_pub = self.create_publisher(Marker, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
 
         # For subscribing to the markers
-        self.marker_sub = self.create_subscription(Marker, "/people_marker", self.timer_callback, qos_profile_sensor_data)
+        self.marker_sub = self.create_subscription(Marker, "/people_marker", self.timer_callback, 1)
 
         # Create a timer, to do the main work.
         # self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.face_pos = []
 
     def timer_callback(self, msg):
         # Create a PointStamped in the /base_link frame of the robot
@@ -74,14 +75,36 @@ class TranformPoints(Node):
             self.get_logger().info(f"We transformed a PointStamped! JUHEEEJ: {point_in_map_frame}")
 
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
-            # marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
+            marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
 
-            # # Publish the marker
-            self.marker_pub.publish(point_in_map_frame)
-            self.get_logger().info(f"The marker has been published to /marker_pos. You are able to visualize it in Rviz")
+			
+            # # publishamo samo v primeru ko je marker nov torej ni v arrayu self.face_pos ali bližini 0.5
+            if len(self.face_pos) == 0:
+                self.marker_pub.publish(marker_in_map_frame)
+                self.face_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
+                # log
+                self.get_logger().info(f"Face detected at: {point_in_map_frame.point}")
+                self.marker_id += 1
+
+            else:
+                for i in self.face_pos:
+                    if abs(i["x"]-point_in_map_frame.point.x) < 0.5 and abs(i["y"]-point_in_map_frame.point.y) < 0.5 and abs(i["z"]-point_in_map_frame.point.z) < 0.5:
+                        # log
+                        self.get_logger().info(f"ISTI")
+                        break
+                else:
+                    self.marker_pub.publish(marker_in_map_frame)
+                    self.face_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
+                    # log
+                    self.get_logger().info(f"Face detected at: {point_in_map_frame.point}")
+                    self.marker_id += 1
+
+            # # Publish the marker if marker_id is set
+            #self.marker_pub.publish(marker_in_map_frame)
+            #self.get_logger().info(f"The marker has been published to /marker_pos. You are able to visualize it in Rviz")
 
             # # Increase the marker_id, so we dont overwrite the same marker.
-            # self.marker_id += 1
+            
 
         except TransformException as te:
             self.get_logger().info(f"Cound not get the transform: {te}")
