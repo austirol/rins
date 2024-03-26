@@ -94,6 +94,7 @@ class RobotCommander(Node):
         self.get_logger().info(f"Robot commander has been initialized!")
 
     def cleaner(self):
+        self.get_logger().info("CLEANING")
         epsilon = 0.50
         duplicates = []
         for i, pos1 in enumerate(self.face_pos):
@@ -381,10 +382,11 @@ def main(args=None):
     for i in range(len(list_of_points)):
         goal_pose.pose.position.x = list_of_points[i][0]
         goal_pose.pose.position.y = list_of_points[i][1]
-        goal_pose.pose.orientation = list_of_points[i][3]
+        goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
         rc.goToPose(goal_pose)
         while not rc.isTaskComplete():
             rc.info("Waiting for the task to complete...")
+            rc.cleaner()
             time.sleep(1)
     
     rc.destroyNode()
