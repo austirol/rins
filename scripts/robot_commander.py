@@ -36,6 +36,8 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 
+from playsound import playsound
+
 
 class TaskResult(Enum):
     UNKNOWN = 0
@@ -155,7 +157,8 @@ class RobotCommander(Node):
                         # rc.cleaner()
                         time.sleep(1)
                     #text to speach
-                        # kle
+                    playsound('mojca.m4a')
+                    self.info('playing sound using  playsound')
                     #pojdi nazaj
                     goal_pose.pose.position.x = self.pos_save.pose.position.x
                     goal_pose.pose.position.y = self.pos_save.pose.position.y
