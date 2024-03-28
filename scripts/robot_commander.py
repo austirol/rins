@@ -154,6 +154,8 @@ class RobotCommander(Node):
                         self.info("Waiting for the task to complete... LOL")
                         # rc.cleaner()
                         time.sleep(1)
+                    #text to speach
+                        # kle
                     #pojdi nazaj
                     goal_pose.pose.position.x = self.pos_save.pose.position.x
                     goal_pose.pose.position.y = self.pos_save.pose.position.y
