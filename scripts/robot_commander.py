@@ -18,6 +18,8 @@ from visualization_msgs.msg import Marker
 from enum import Enum
 import time
 import pyttsx3
+import math
+import numpy as np
 
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Duration
@@ -36,8 +38,6 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
-
-from playsound import playsound
 
 
 class TaskResult(Enum):
@@ -121,6 +121,14 @@ class RobotCommander(Node):
     #     for i, duplicate in enumerate(duplicates):
     #         self.face_pos.pop(duplicate-i)
         
+    def angle(self, vector1, vector2):
+        dot_product = sum(a*b for a, b in zip(vector1, vector2))
+        magnitude1 = math.sqrt(sum(a**2 for a in vector1))
+        magnitude2 = math.sqrt(sum(b**2 for b in vector2))
+        cos_theta = dot_product/(magnitude1*magnitude2)
+        theta = math.acos(cos_theta)
+        return ((360 - 2*theta)/4)/360*3.14
+        
     def _go_to_face(self):
         self.get_logger().info("tukaj")
         if self.undocked:
@@ -148,21 +156,36 @@ class RobotCommander(Node):
                     goal_pose.header.frame_id = 'map'
                     goal_pose.header.stamp = self.get_clock().now().to_msg()
                     # self.info("1")
-                    goal_pose.pose.position.x = self.face_pos[i]["x"]
-                    goal_pose.pose.position.y = self.face_pos[i]["y"]
-                    goal_pose.pose.orientation = self.pos_save.pose.orientation
+
+                    # goal_pose +/- 0.5 metra
+                    current_x = float(self.pos_save.pose.position.x)
+                    current_y = float(self.pos_save.pose.position.y)
+                    goal_x = float(self.face_pos[i]["x"])
+                    goal_y = float(self.face_pos[i]["y"])
+                    goal_orientation = self.YawToQuaternion(self.angle([current_x, current_y], [goal_x, goal_y]))
+                    
+                    current_pose_vector = np.array([current_x, current_y])
+                    goal_pose_vector = np.array([goal_x, goal_y])
+                    direction_vector = goal_pose_vector - current_pose_vector
+                    normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+                    new_goal_pose = goal_pose_vector - 0.5 * normalized_direction
+                    goal_x = float(new_goal_pose[0])
+                    goal_y = float(new_goal_pose[1])
+
+                    goal_pose.pose.position.x = goal_x
+                    goal_pose.pose.position.y = goal_y
+                    goal_pose.pose.orientation = goal_orientation
                     # self.info("1")
                     self.goToPose(goal_pose)
                     self.get_logger().info("1")
                     while not self.isTaskComplete():
-                        self.info("Waiting for the task to complete... LOL")
+                        self.get_logger().info("Waiting for the task to complete... LOL2")
                         # rc.cleaner()
                         time.sleep(1)
                     #text to speach
-                    # playsound('mojca.m4a')
-                    # self.info('playing sound using  playsound')
                     self.engine.say("Hello")
                     self.engine.runAndWait()
+                    self.get_logger().info("Text to speech!")
                     #pojdi nazaj
                     #goal_pose.pose.position.x = self.pos_save.pose.position.x
                     #goal_pose.pose.position.y = self.pos_save.pose.position.y
@@ -175,7 +198,7 @@ class RobotCommander(Node):
                     #restoraj goal
                     self.goToPose(self.goal_save)
                     while not self.isTaskComplete():
-                        self.get_logger().info("Waiting for the task to complete... LOL")
+                        self.get_logger().info("Waiting for the task to complete... LOL3")
                         # rc.cleaner()
                         time.sleep(1)
         return
