@@ -64,6 +64,12 @@ class RobotCommander(Node):
         self.initial_pose_received = False
         self.is_docked = None
 
+        self.goal_now = None
+        self.undocked = False
+
+        self.goal_save = None
+        self.pos_save = None
+
         # ROS2 subscribers
         self.create_subscription(DockStatus,
                                  'dock_status',
@@ -91,63 +97,125 @@ class RobotCommander(Node):
 
         # pictures
         self.face_pos = []
+        self.face_flag = []
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
-    def cleaner(self):
-        self.get_logger().info("CLEANING")
-        epsilon = 0.50
-        duplicates = []
-        for i, pos1 in enumerate(self.face_pos):
-            for j, pos2 in enumerate(self.face_pos[i+1:]):
-                same = 0
-                for coor in pos1.keys():
-                    if abs(pos1[coor]-pos2[coor]) < epsilon:
-                        same += 1
-                if same == 3:
-                    duplicates.append(j+i+1)
+    # def cleaner(self):
+    #     self.get_logger().info("CLEANING")
+    #     epsilon = 0.50
+    #     duplicates = []
+    #     for i, pos1 in enumerate(self.face_pos):
+    #         for j, pos2 in enumerate(self.face_pos[i+1:]):
+    #             same = 0
+    #             for coor in pos1.keys():
+    #                 if abs(pos1[coor]-pos2[coor]) < epsilon:
+    #                     same += 1
+    #             if same == 3:
+    #                 duplicates.append(j+i+1)
 
-        for i, duplicate in enumerate(duplicates):
-            self.face_pos.pop(duplicate-i)
+    #     for i, duplicate in enumerate(duplicates):
+    #         self.face_pos.pop(duplicate-i)
+        
+    def _go_to_face(self):
+        self.info("tukaj")
+        if self.undocked:
+            for i, flag in enumerate(self.face_flag):
+                if not flag:
+                    #shrani trenutni goal
+                    self.goal_save = self.goal_now
+                    #shrani trenutno pozicijo
+                    self.pos_save = self.current_pose
+                    # self.get_logger().info(self.pos_save)
+                    # geometry_msgs.msg.PoseWithCovariance(pose=geometry_msgs.msg.Pose(position=geometry_msgs.msg.Point(x=-0.48143899956437886, y=-0.37357906631237975, z=0.0), orientation=geometry_msgs.msg.Quaternion(x=0.0, y=0.0, z=-0.644360343322105, w=0.764722006976273)), covariance=array([0.00867094, 0.00057082, 0.        , 0.        , 0.        ,
+                    #    0.        , 0.00057082, 0.02656898, 0.        , 0.        ,
+                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
+                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
+                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
+                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
+                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
+                    #    0.02857909]))
+                    #skenslaj goal
+                    self.cancelTask()
+                    time.sleep(1)
+                    # self.info("1")
+                    #pojdi do face
+                    goal_pose = PoseStamped()
+                    goal_pose.header.frame_id = 'map'
+                    goal_pose.header.stamp = self.get_clock().now().to_msg()
+                    # self.info("1")
+                    goal_pose.pose.position.x = self.face_pos[i]["x"]
+                    goal_pose.pose.position.y = self.face_pos[i]["y"]
+                    goal_pose.pose.orientation = self.pos_save.pose.orientation
+                    # self.info("1")
+                    self.goToPose(goal_pose)
+                    self.info("1")
+                    while not self.isTaskComplete():
+                        self.info("Waiting for the task to complete... LOL")
+                        # rc.cleaner()
+                        time.sleep(1)
+                    #pojdi nazaj
+                    goal_pose.pose.position.x = self.pos_save.pose.position.x
+                    goal_pose.pose.position.y = self.pos_save.pose.position.y
+                    goal_pose.pose.orientation = self.pos_save.pose.orientation
+                    self.goToPose(goal_pose)
+                    while not self.isTaskComplete():
+                        self.info("Waiting for the task to complete... LOL")
+                        # rc.cleaner()
+                        time.sleep(1)
+                    #restoraj goal
+                    self.goToPose(self.goal_save)
+                    while not self.isTaskComplete():
+                        self.info("Waiting for the task to complete... LOL")
+                        # rc.cleaner()
+                        time.sleep(1)
+        return
 
+        
 
     def face_handler(self, msg):
         x = msg.pose.position.x
         y = msg.pose.position.y
         z = msg.pose.position.z
-        index = len(self.face_pos)
+        # index = len(self.face_pos)
 
         point = {"x":x, "y":y, "z":z}
 
-        epsilon = 0.50
+        self.face_pos.append(point)
+        self.face_flag.append(False)
+        self._go_to_face()
 
-        if len(self.face_pos) == 0:
-            if len(self.face_pos) == index:
-                self.face_pos.append({})
-            self.face_pos[index] = {"x":x, "y":y, "z":z}
-        else:
-            for i in self.face_pos:
-                self.get_logger().info(f"pridi {x, y, z} {self.face_pos}")
-                same = 0
-                for j in i.keys():
-                    if abs(i[j]-point[j]) < epsilon:
-                        self.get_logger().info(str(abs(i[j]-point[j])))
-                        same += 1
-                if same != 3:
-                    if len(self.face_pos) == index:
-                        self.face_pos.append({})
-                    self.face_pos[index] = {"x":x, "y":y, "z":z}
-                    time.sleep(0.5)
+
+    #     epsilon = 0.50
+
+    #     if len(self.face_pos) == 0:
+    #         if len(self.face_pos) == index:
+    #             self.face_pos.append({})
+    #         self.face_pos[index] = {"x":x, "y":y, "z":z}
+    #     else:
+    #         for i in self.face_pos:
+    #             self.get_logger().info(f"pridi {x, y, z} {self.face_pos}")
+    #             same = 0
+    #             for j in i.keys():
+    #                 if abs(i[j]-point[j]) < epsilon:
+    #                     self.get_logger().info(str(abs(i[j]-point[j])))
+    #                     same += 1
+    #             if same != 3:
+    #                 if len(self.face_pos) == index:
+    #                     self.face_pos.append({})
+    #                 self.face_pos[index] = {"x":x, "y":y, "z":z}
+    #                 time.sleep(0.5)
                     
-                else:
-                    self.get_logger().info(f"JUHEEEEEJ3: isti je")
+    #             else:
+    #                 self.get_logger().info(f"JUHEEEEEJ3: isti je")
 
-        self.get_logger().info(f"JUHEEEJ2: {len(self.face_pos)}")
+    #     self.get_logger().info(f"JUHEEEJ2: {len(self.face_pos)}")
         
 
-        self.cleaner()
+    #     self.cleaner()
 
         # time.sleep(0.1)
+        return
 
         
     def destroyNode(self):
@@ -162,6 +230,7 @@ class RobotCommander(Node):
 
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = pose
+        self.goal_now = pose
         goal_msg.behavior_tree = behavior_tree
 
         self.info('Navigating to goal: ' + str(pose.pose.position.x) + ' ' +
@@ -206,6 +275,8 @@ class RobotCommander(Node):
 
         while not self.isUndockComplete():
             time.sleep(0.1)
+        self.undocked = True
+        
 
     def undock_send_goal(self):
         goal_msg = Undock.Goal()
@@ -248,8 +319,13 @@ class RobotCommander(Node):
         """Cancel pending task request of any type."""
         self.info('Canceling current task.')
         if self.result_future:
+            # self.info('Canceled current task.')
             future = self.goal_handle.cancel_goal_async()
-            rclpy.spin_until_future_complete(self, future)
+            # self.info('Canceled current task.')
+            time.sleep(1)
+            #če je odkomentirano ne dela
+            # rclpy.spin_until_future_complete(self, future)
+        self.info('Canceled current task.')
         return
 
     def isTaskComplete(self):
@@ -334,6 +410,7 @@ class RobotCommander(Node):
     
     def _dockCallback(self, msg: DockStatus):
         self.is_docked = msg.is_docked
+        self.undocked = not self.is_docked
 
     def setInitialPose(self, pose):
         msg = PoseWithCovarianceStamped()
@@ -390,7 +467,7 @@ def main(args=None):
         rc.goToPose(goal_pose)
         while not rc.isTaskComplete():
             rc.info("Waiting for the task to complete... LOL")
-            rc.cleaner()
+            # rc.cleaner()
             time.sleep(1)
     
     rc.destroyNode()
