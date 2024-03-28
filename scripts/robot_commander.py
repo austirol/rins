@@ -17,6 +17,7 @@
 from visualization_msgs.msg import Marker
 from enum import Enum
 import time
+import pyttsx3
 
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Duration
@@ -55,6 +56,7 @@ class RobotCommander(Node):
         super().__init__(node_name=node_name, namespace=namespace)
         
         self.pose_frame_id = 'map'
+        self.engine = pyttsx3.init()
         
         # Flags and helper variables
         self.goal_handle = None
@@ -118,7 +120,7 @@ class RobotCommander(Node):
     #         self.face_pos.pop(duplicate-i)
         
     def _go_to_face(self):
-        self.info("tukaj")
+        self.get_logger().info("tukaj")
         if self.undocked:
             for i, flag in enumerate(self.face_flag):
                 if not flag:
@@ -149,26 +151,27 @@ class RobotCommander(Node):
                     goal_pose.pose.orientation = self.pos_save.pose.orientation
                     # self.info("1")
                     self.goToPose(goal_pose)
-                    self.info("1")
+                    self.get_logger().info("1")
                     while not self.isTaskComplete():
                         self.info("Waiting for the task to complete... LOL")
                         # rc.cleaner()
                         time.sleep(1)
                     #text to speach
-                        # kle
+                        self.engine.say("Hello")
+                        self.engine.runAndWait()
                     #pojdi nazaj
-                    goal_pose.pose.position.x = self.pos_save.pose.position.x
-                    goal_pose.pose.position.y = self.pos_save.pose.position.y
-                    goal_pose.pose.orientation = self.pos_save.pose.orientation
-                    self.goToPose(goal_pose)
-                    while not self.isTaskComplete():
-                        self.info("Waiting for the task to complete... LOL")
-                        # rc.cleaner()
-                        time.sleep(1)
+                    #goal_pose.pose.position.x = self.pos_save.pose.position.x
+                    #goal_pose.pose.position.y = self.pos_save.pose.position.y
+                    #goal_pose.pose.orientation = self.pos_save.pose.orientation
+                    #self.goToPose(goal_pose)
+                    #while not self.isTaskComplete():
+                    #    self.get_logger().info("Waiting for the task to complete... LOL")
+                    #    # rc.cleaner()
+                    #    time.sleep(1)
                     #restoraj goal
                     self.goToPose(self.goal_save)
                     while not self.isTaskComplete():
-                        self.info("Waiting for the task to complete... LOL")
+                        self.get_logger().info("Waiting for the task to complete... LOL")
                         # rc.cleaner()
                         time.sleep(1)
         return
