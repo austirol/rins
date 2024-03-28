@@ -85,6 +85,10 @@ class detect_faces(Node):
 				# draw the center of bounding box
 				cv_image = cv2.circle(cv_image, (cx,cy), 5, self.detection_color, -1)
 
+				# za izris obraza, ki je bil zaznan
+				# self.get_logger().info(str(cv_image.shape) + " " + str(int(bbox[0])) + " " + str(int(bbox[1])) + " " + str(int(bbox[2])) + " " + str(int(bbox[3])))
+				# cv_image = cv_image[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]
+
 				self.faces.append((cx,cy))
 
 			cv2.imshow("image", cv_image)
