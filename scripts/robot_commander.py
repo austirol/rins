@@ -157,8 +157,8 @@ class RobotCommander(Node):
                         # rc.cleaner()
                         time.sleep(1)
                     #text to speach
-                        self.engine.say("Hello")
-                        self.engine.runAndWait()
+                    self.engine.say("Hello")
+                    self.engine.runAndWait()
                     #pojdi nazaj
                     #goal_pose.pose.position.x = self.pos_save.pose.position.x
                     #goal_pose.pose.position.y = self.pos_save.pose.position.y
