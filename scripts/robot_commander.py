@@ -333,6 +333,59 @@ def angle(vector1, vector2):
     theta = math.acos(cos_theta)
     return ((360 - 2*theta)/4)/360*3.14
 
+def approach_face(rc):
+    #rc.get_logger().info(f"tukaj, faces:{rc.face_pos}, flags:{rc.face_flag}")
+    for j, flag in enumerate(rc.face_flag):
+        if not flag:
+            #shrani trenutni goal
+            goal_save = rc.goal_now
+            #shrani trenutno pozicijo
+            pos_save = rc.current_pose
+            #skenslaj goal
+            rc.cancelTask()
+            time.sleep(1)
+            
+            #pojdi do face
+            goal_pose = PoseStamped()
+            goal_pose.header.frame_id = 'map'
+            goal_pose.header.stamp = rc.get_clock().now().to_msg()
+            
+            # goal_pose +/- 0.2 metra
+            current_x = float(pos_save.pose.position.x)
+            current_y = float(pos_save.pose.position.y)
+            goal_x = float(rc.face_pos[j]["x"])
+            goal_y = float(rc.face_pos[j]["y"])
+            goal_orientation = rc.YawToQuaternion(angle([current_x, current_y], [goal_x, goal_y]))
+
+            current_pose_vector = np.array([current_x, current_y])
+            goal_pose_vector = np.array([goal_x, goal_y])
+            direction_vector = goal_pose_vector - current_pose_vector
+            normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+            new_goal_pose = goal_pose_vector - 0.2 * normalized_direction
+            goal_x = float(new_goal_pose[0])
+            goal_y = float(new_goal_pose[1])
+
+            goal_pose.pose.position.x = goal_x
+            goal_pose.pose.position.y = goal_y
+            goal_pose.pose.orientation = goal_orientation
+            rc.goToPose(goal_pose)
+            #rc.info("1")
+            while not rc.isTaskComplete():
+                rc.get_logger().info("Waiting for the task to complete... LOL2")
+                # rc.cleaner()
+                time.sleep(1)                    
+            #text to speach
+            rc.get_logger().info("Text to speech!")
+            rc.engine.say("Hello")
+            rc.engine.runAndWait()
+            rc.face_flag[j] = True
+            #restoraj goal
+            rc.goToPose(goal_save)
+            while not rc.isTaskComplete():
+                rc.get_logger().info("Waiting for the task to complete... LOL3")
+                # rc.cleaner()
+                time.sleep(1)
+
 def main(args=None):
     
     rclpy.init(args=args)
@@ -357,65 +410,13 @@ def main(args=None):
     list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
 
     for i in range(len(list_of_points)):
-        rc.get_logger().info("tukaj")
-        for j, flag in enumerate(rc.face_flag):
-            if not flag:
-                #shrani trenutni goal
-                goal_save = rc.goal_now
-                #shrani trenutno pozicijo
-                pos_save = rc.current_pose
-                #skenslaj goal
-                rc.cancelTask()
-                time.sleep(1)
-                # rc.info("1")
-                #pojdi do face
-                goal_pose = PoseStamped()
-                goal_pose.header.frame_id = 'map'
-                goal_pose.header.stamp = rc.get_clock().now().to_msg()
-                # rc.info("1")
-
-                # goal_pose +/- 0.5 metra
-                current_x = float(pos_save.pose.position.x)
-                current_y = float(pos_save.pose.position.y)
-                goal_x = float(rc.face_pos[j]["x"])
-                goal_y = float(rc.face_pos[j]["y"])
-                goal_orientation = rc.YawToQuaternion(angle([current_x, current_y], [goal_x, goal_y]))
-
-                current_pose_vector = np.array([current_x, current_y])
-                goal_pose_vector = np.array([goal_x, goal_y])
-                direction_vector = goal_pose_vector - current_pose_vector
-                normalized_direction = direction_vector / np.linalg.norm(direction_vector)
-                new_goal_pose = goal_pose_vector - 0.5 * normalized_direction
-                goal_x = float(new_goal_pose[0])
-                goal_y = float(new_goal_pose[1])
-
-                goal_pose.pose.position.x = goal_x
-                goal_pose.pose.position.y = goal_y
-                goal_pose.pose.orientation = goal_orientation
-                rc.goToPose(goal_pose)
-                rc.info("1")
-                while not rc.isTaskComplete():
-                    rc.get_logger().info("Waiting for the task to complete... LOL2")
-                    # rc.cleaner()
-                    time.sleep(1)                    
-                #text to speach
-                rc.get_logger().info("Text to speech!")
-                rc.engine.say("Hello")
-                rc.engine.runAndWait()
-                #restoraj goal
-                rc.goToPose(goal_save)
-                while not rc.isTaskComplete():
-                    rc.get_logger().info("Waiting for the task to complete... LOL3")
-                    # rc.cleaner()
-                    time.sleep(1)
-
         goal_pose.pose.position.x = list_of_points[i][0]
         goal_pose.pose.position.y = list_of_points[i][1]
         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
         rc.goToPose(goal_pose)
         while not rc.isTaskComplete():
             rc.info("Waiting for the task to complete... LOL")
-            # rc.cleaner()
+            approach_face(rc)
             time.sleep(1)
     
     rc.destroyNode()
