@@ -68,12 +68,6 @@ class RobotCommander(Node):
         self.initial_pose_received = False
         self.is_docked = None
 
-        self.goal_now = None
-        self.undocked = False
-
-        self.goal_save = None
-        self.pos_save = None
-
         # ROS2 subscribers
         self.create_subscription(DockStatus,
                                  'dock_status',
@@ -90,7 +84,7 @@ class RobotCommander(Node):
                                                       'initialpose',
                                                       10)
         
-        # marker position listenr
+        # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
         
         # ROS2 Action clients
@@ -105,105 +99,6 @@ class RobotCommander(Node):
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
-    # def cleaner(self):
-    #     self.get_logger().info("CLEANING")
-    #     epsilon = 0.50
-    #     duplicates = []
-    #     for i, pos1 in enumerate(self.face_pos):
-    #         for j, pos2 in enumerate(self.face_pos[i+1:]):
-    #             same = 0
-    #             for coor in pos1.keys():
-    #                 if abs(pos1[coor]-pos2[coor]) < epsilon:
-    #                     same += 1
-    #             if same == 3:
-    #                 duplicates.append(j+i+1)
-
-    #     for i, duplicate in enumerate(duplicates):
-    #         self.face_pos.pop(duplicate-i)
-        
-    def angle(self, vector1, vector2):
-        dot_product = sum(a*b for a, b in zip(vector1, vector2))
-        magnitude1 = math.sqrt(sum(a**2 for a in vector1))
-        magnitude2 = math.sqrt(sum(b**2 for b in vector2))
-        cos_theta = dot_product/(magnitude1*magnitude2)
-        theta = math.acos(cos_theta)
-        return ((360 - 2*theta)/4)/360*3.14
-        
-    def _go_to_face(self):
-        self.get_logger().info("tukaj")
-        if self.undocked:
-            for i, flag in enumerate(self.face_flag):
-                if not flag:
-                    #shrani trenutni goal
-                    self.goal_save = self.goal_now
-                    #shrani trenutno pozicijo
-                    self.pos_save = self.current_pose
-                    # self.get_logger().info(self.pos_save)
-                    # geometry_msgs.msg.PoseWithCovariance(pose=geometry_msgs.msg.Pose(position=geometry_msgs.msg.Point(x=-0.48143899956437886, y=-0.37357906631237975, z=0.0), orientation=geometry_msgs.msg.Quaternion(x=0.0, y=0.0, z=-0.644360343322105, w=0.764722006976273)), covariance=array([0.00867094, 0.00057082, 0.        , 0.        , 0.        ,
-                    #    0.        , 0.00057082, 0.02656898, 0.        , 0.        ,
-                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
-                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
-                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
-                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
-                    #    0.        , 0.        , 0.        , 0.        , 0.        ,
-                    #    0.02857909]))
-                    #skenslaj goal
-                    self.cancelTask()
-                    time.sleep(1)
-                    # self.info("1")
-                    #pojdi do face
-                    goal_pose = PoseStamped()
-                    goal_pose.header.frame_id = 'map'
-                    goal_pose.header.stamp = self.get_clock().now().to_msg()
-                    # self.info("1")
-
-                    # goal_pose +/- 0.5 metra
-                    current_x = float(self.pos_save.pose.position.x)
-                    current_y = float(self.pos_save.pose.position.y)
-                    goal_x = float(self.face_pos[i]["x"])
-                    goal_y = float(self.face_pos[i]["y"])
-                    goal_orientation = self.YawToQuaternion(self.angle([current_x, current_y], [goal_x, goal_y]))
-                    
-                    current_pose_vector = np.array([current_x, current_y])
-                    goal_pose_vector = np.array([goal_x, goal_y])
-                    direction_vector = goal_pose_vector - current_pose_vector
-                    normalized_direction = direction_vector / np.linalg.norm(direction_vector)
-                    new_goal_pose = goal_pose_vector - 0.5 * normalized_direction
-                    goal_x = float(new_goal_pose[0])
-                    goal_y = float(new_goal_pose[1])
-
-                    goal_pose.pose.position.x = goal_x
-                    goal_pose.pose.position.y = goal_y
-                    goal_pose.pose.orientation = goal_orientation
-                    # self.info("1")
-                    self.goToPose(goal_pose)
-                    self.get_logger().info("1")
-                    while not self.isTaskComplete():
-                        self.get_logger().info("Waiting for the task to complete... LOL2")
-                        # rc.cleaner()
-                        time.sleep(1)
-                    #text to speach
-                    self.engine.say("Hello")
-                    self.engine.runAndWait()
-                    self.get_logger().info("Text to speech!")
-                    #pojdi nazaj
-                    #goal_pose.pose.position.x = self.pos_save.pose.position.x
-                    #goal_pose.pose.position.y = self.pos_save.pose.position.y
-                    #goal_pose.pose.orientation = self.pos_save.pose.orientation
-                    #self.goToPose(goal_pose)
-                    #while not self.isTaskComplete():
-                    #    self.get_logger().info("Waiting for the task to complete... LOL")
-                    #    # rc.cleaner()
-                    #    time.sleep(1)
-                    #restoraj goal
-                    self.goToPose(self.goal_save)
-                    while not self.isTaskComplete():
-                        self.get_logger().info("Waiting for the task to complete... LOL3")
-                        # rc.cleaner()
-                        time.sleep(1)
-        return
-
-        
 
     def face_handler(self, msg):
         x = msg.pose.position.x
@@ -215,41 +110,10 @@ class RobotCommander(Node):
 
         self.face_pos.append(point)
         self.face_flag.append(False)
-        self._go_to_face()
 
-
-    #     epsilon = 0.50
-
-    #     if len(self.face_pos) == 0:
-    #         if len(self.face_pos) == index:
-    #             self.face_pos.append({})
-    #         self.face_pos[index] = {"x":x, "y":y, "z":z}
-    #     else:
-    #         for i in self.face_pos:
-    #             self.get_logger().info(f"pridi {x, y, z} {self.face_pos}")
-    #             same = 0
-    #             for j in i.keys():
-    #                 if abs(i[j]-point[j]) < epsilon:
-    #                     self.get_logger().info(str(abs(i[j]-point[j])))
-    #                     same += 1
-    #             if same != 3:
-    #                 if len(self.face_pos) == index:
-    #                     self.face_pos.append({})
-    #                 self.face_pos[index] = {"x":x, "y":y, "z":z}
-    #                 time.sleep(0.5)
-                    
-    #             else:
-    #                 self.get_logger().info(f"JUHEEEEEJ3: isti je")
-
-    #     self.get_logger().info(f"JUHEEEJ2: {len(self.face_pos)}")
-        
-
-    #     self.cleaner()
-
-        # time.sleep(0.1)
         return
 
-        
+
     def destroyNode(self):
         self.nav_to_pose_client.destroy()
         super().destroy_node()     
@@ -307,8 +171,6 @@ class RobotCommander(Node):
 
         while not self.isUndockComplete():
             time.sleep(0.1)
-        self.undocked = True
-        
 
     def undock_send_goal(self):
         goal_msg = Undock.Goal()
@@ -351,13 +213,8 @@ class RobotCommander(Node):
         """Cancel pending task request of any type."""
         self.info('Canceling current task.')
         if self.result_future:
-            # self.info('Canceled current task.')
             future = self.goal_handle.cancel_goal_async()
-            # self.info('Canceled current task.')
-            time.sleep(1)
-            #če je odkomentirano ne dela
-            # rclpy.spin_until_future_complete(self, future)
-        self.info('Canceled current task.')
+            rclpy.spin_until_future_complete(self, future)
         return
 
     def isTaskComplete(self):
@@ -442,7 +299,6 @@ class RobotCommander(Node):
     
     def _dockCallback(self, msg: DockStatus):
         self.is_docked = msg.is_docked
-        self.undocked = not self.is_docked
 
     def setInitialPose(self, pose):
         msg = PoseWithCovarianceStamped()
@@ -469,6 +325,14 @@ class RobotCommander(Node):
         self.get_logger().debug(msg)
         return
     
+def angle(vector1, vector2):
+    dot_product = sum(a*b for a, b in zip(vector1, vector2))
+    magnitude1 = math.sqrt(sum(a**2 for a in vector1))
+    magnitude2 = math.sqrt(sum(b**2 for b in vector2))
+    cos_theta = dot_product/(magnitude1*magnitude2)
+    theta = math.acos(cos_theta)
+    return ((360 - 2*theta)/4)/360*3.14
+
 def main(args=None):
     
     rclpy.init(args=args)
@@ -490,9 +354,61 @@ def main(args=None):
     goal_pose.header.frame_id = 'map'
     goal_pose.header.stamp = rc.get_clock().now().to_msg()
     
-    list_of_points = [[1.0, -2.0, 1.7],[2.23, -1.6, -1.7],[1.0, 0.0, -1.5],[0.3, 3.25, -1.7],[-1.5, 4.5, 0.0],[-1.0, 1.2, -2.75],[1.0, 1.65, -1.7],[-1.55, -0.65, -1.7],[-0.27, -0.27, 0.0]]
+    list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
 
     for i in range(len(list_of_points)):
+        rc.get_logger().info("tukaj")
+        for j, flag in enumerate(rc.face_flag):
+            if not flag:
+                #shrani trenutni goal
+                goal_save = rc.goal_now
+                #shrani trenutno pozicijo
+                pos_save = rc.current_pose
+                #skenslaj goal
+                rc.cancelTask()
+                time.sleep(1)
+                # rc.info("1")
+                #pojdi do face
+                goal_pose = PoseStamped()
+                goal_pose.header.frame_id = 'map'
+                goal_pose.header.stamp = rc.get_clock().now().to_msg()
+                # rc.info("1")
+
+                # goal_pose +/- 0.5 metra
+                current_x = float(pos_save.pose.position.x)
+                current_y = float(pos_save.pose.position.y)
+                goal_x = float(rc.face_pos[j]["x"])
+                goal_y = float(rc.face_pos[j]["y"])
+                goal_orientation = rc.YawToQuaternion(angle([current_x, current_y], [goal_x, goal_y]))
+
+                current_pose_vector = np.array([current_x, current_y])
+                goal_pose_vector = np.array([goal_x, goal_y])
+                direction_vector = goal_pose_vector - current_pose_vector
+                normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+                new_goal_pose = goal_pose_vector - 0.5 * normalized_direction
+                goal_x = float(new_goal_pose[0])
+                goal_y = float(new_goal_pose[1])
+
+                goal_pose.pose.position.x = goal_x
+                goal_pose.pose.position.y = goal_y
+                goal_pose.pose.orientation = goal_orientation
+                rc.goToPose(goal_pose)
+                rc.info("1")
+                while not rc.isTaskComplete():
+                    rc.get_logger().info("Waiting for the task to complete... LOL2")
+                    # rc.cleaner()
+                    time.sleep(1)                    
+                #text to speach
+                rc.get_logger().info("Text to speech!")
+                rc.engine.say("Hello")
+                rc.engine.runAndWait()
+                #restoraj goal
+                rc.goToPose(goal_save)
+                while not rc.isTaskComplete():
+                    rc.get_logger().info("Waiting for the task to complete... LOL3")
+                    # rc.cleaner()
+                    time.sleep(1)
+
         goal_pose.pose.position.x = list_of_points[i][0]
         goal_pose.pose.position.y = list_of_points[i][1]
         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])

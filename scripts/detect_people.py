@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import time
 
 import rclpy
 from rclpy.node import Node
@@ -42,17 +41,12 @@ class detect_faces(Node):
 		self.pointcloud_sub = self.create_subscription(PointCloud2, "/oakd/rgb/preview/depth/points", self.pointcloud_callback, qos_profile_sensor_data)
 
 		self.marker_pub = self.create_publisher(Marker, marker_topic, QoSReliabilityPolicy.BEST_EFFORT)
-		#self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
 
 		self.model = YOLO("yolov8n.pt")
 
 		self.faces = []
 
-		self.face_pos = []
-
 		self.get_logger().info(f"Node has been initialized! Will publish face markers to {marker_topic}.")
-	
-	
 
 	def rgb_callback(self, data):
 
@@ -85,10 +79,6 @@ class detect_faces(Node):
 				# draw the center of bounding box
 				cv_image = cv2.circle(cv_image, (cx,cy), 5, self.detection_color, -1)
 
-				# za izris obraza, ki je bil zaznan
-				# self.get_logger().info(str(cv_image.shape) + " " + str(int(bbox[0])) + " " + str(int(bbox[1])) + " " + str(int(bbox[2])) + " " + str(int(bbox[3])))
-				# cv_image = cv_image[int(bbox[1]):int(bbox[3]), int(bbox[0]):int(bbox[2])]
-
 				self.faces.append((cx,cy))
 
 			cv2.imshow("image", cv_image)
@@ -99,7 +89,6 @@ class detect_faces(Node):
 			
 		except CvBridgeError as e:
 			print(e)
-					
 
 	def pointcloud_callback(self, data):
 
@@ -146,26 +135,6 @@ class detect_faces(Node):
 			marker.pose.position.z = float(d[2])
 
 			self.marker_pub.publish(marker)
-			
-			# if len(self.face_pos) == 0:
-			# 	self.marker_pub.publish(marker)
-			# 	self.face_pos.append({"x":d[0], "y":d[1], "z":d[2]})
-			# 	# log
-			# 	self.get_logger().info(f"Face detected at: {d}")
-			# else:
-			# 	for i in self.face_pos:
-			# 		if abs(i["x"]-d[0]) < 0.5 and abs(i["y"]-d[1]) < 0.5 and abs(i["z"]-d[2]) < 0.5:
-			# 			# log
-			# 			self.get_logger().info(f"ISTI")
-			# 			break
-			# 	else:
-			# 		self.marker_pub.publish(marker)
-			# 		self.face_pos.append({"x":d[0], "y":d[1], "z":d[2]})
-			# 		time.sleep(0.5)
-			# 		# log
-			# 		self.get_logger().info(f"Face detected at: {d}")
-
-			# time.sleep(0.1)
 
 def main():
 	print('Face detection node starting.')
