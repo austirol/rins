@@ -88,7 +88,7 @@ class TranformPoints(Node):
 
             else:
                 for i in self.face_pos:
-                    if abs(i["x"]-point_in_map_frame.point.x) < 0.5 and abs(i["y"]-point_in_map_frame.point.y) < 0.5 and abs(i["z"]-point_in_map_frame.point.z) < 0.5:
+                    if abs(i["x"]-point_in_map_frame.point.x) < 0.6 and abs(i["y"]-point_in_map_frame.point.y) < 0.6 and abs(i["z"]-point_in_map_frame.point.z) < 0.5:
                         # log
                         self.get_logger().info(f"ISTI")
                         break

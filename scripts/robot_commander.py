@@ -361,17 +361,18 @@ def approach_face(rc):
             goal_pose_vector = np.array([goal_x, goal_y])
             direction_vector = goal_pose_vector - current_pose_vector
             normalized_direction = direction_vector / np.linalg.norm(direction_vector)
-            new_goal_pose = goal_pose_vector - 0.2 * normalized_direction
+            new_goal_pose = goal_pose_vector - 0.3 * normalized_direction
             goal_x = float(new_goal_pose[0])
             goal_y = float(new_goal_pose[1])
 
             goal_pose.pose.position.x = goal_x
             goal_pose.pose.position.y = goal_y
             goal_pose.pose.orientation = goal_orientation
+        
             rc.goToPose(goal_pose)
             #rc.info("1")
             while not rc.isTaskComplete():
-                rc.get_logger().info("Waiting for the task to complete... LOL2")
+                rc.get_logger().info("Grem do obraza LOL2")
                 # rc.cleaner()
                 time.sleep(1)                    
             #text to speach
@@ -379,10 +380,13 @@ def approach_face(rc):
             rc.engine.say("Hello")
             rc.engine.runAndWait()
             rc.face_flag[j] = True
+
             #restoraj goal
             rc.goToPose(goal_save)
             while not rc.isTaskComplete():
                 rc.get_logger().info("Waiting for the task to complete... LOL3")
+                # tuki approach face odkomentiraš da bi ti takoj šel do naslednjega obraza
+                approach_face(rc)
                 # rc.cleaner()
                 time.sleep(1)
 
