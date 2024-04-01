@@ -67,6 +67,7 @@ class RobotCommander(Node):
         self.status = None
         self.initial_pose_received = False
         self.is_docked = None
+        self.initial_pose = None
 
         # ROS2 subscribers
         self.create_subscription(DockStatus,
@@ -208,6 +209,67 @@ class RobotCommander(Node):
 
         self.info('Undock succeeded')
         return True
+    
+    def dock(self):
+        """Perform Dock action."""
+        self.info("Going to initial pose... NAmreč zaznael sem tri obraze")
+        goal_initial_pose = PoseStamped()
+        goal_initial_pose.header.frame_id = 'map'
+        goal_initial_pose.header.stamp = self.get_clock().now().to_msg()
+        goal_initial_pose.pose = self.initial_pose.pose
+
+        self.cancelTask()
+        self.goToPose(goal_initial_pose)
+        while not self.isTaskComplete():
+            time.sleep(0.1)
+            self.get_logger().info("Waiting for the task to complete... LOL4")
+        
+
+        self.info('Docking...')
+        self.dock_send_goal()
+            
+        while not self.isDockComplete():
+            time.sleep(0.1)
+
+    def dock_send_goal(self):
+        goal_msg = Dock.Goal()
+        self.dock_action_client.wait_for_server()
+        goal_future = self.dock_action_client.send_goal_async(goal_msg)
+
+        rclpy.spin_until_future_complete(self, goal_future)
+
+        self.dock_goal_handle = goal_future.result()
+
+        if not self.dock_goal_handle.accepted:
+            self.error('Dock goal rejected')
+            return
+
+        self.dock_result_future = self.dock_goal_handle.get_result_async()
+
+    def isDockComplete(self):
+        """
+        Get status of Dock action.
+
+        :return: ``True`` if docked, ``False`` otherwise.
+        """
+        if self.dock_result_future is None or not self.dock_result_future:
+            return True
+
+        rclpy.spin_until_future_complete(self, self.dock_result_future, timeout_sec=0.1)
+
+        if self.dock_result_future.result():
+            self.dock_status = self.dock_result_future.result().status
+            if self.dock_status != GoalStatus.STATUS_SUCCEEDED:
+                self.info(f'Goal with failed with status code: {self.status}')
+                return True
+            
+        else:   
+            return False
+        
+
+        self.info('Dock succeeded')
+        self.is_docked = True
+        return True
 
     def cancelTask(self):
         """Cancel pending task request of any type."""
@@ -325,6 +387,22 @@ class RobotCommander(Node):
         self.get_logger().debug(msg)
         return
     
+
+def check_if_three_faces(rc):
+    # check if three flags are true
+    stevec = 0
+    for i in range(len(rc.face_flag)):
+        if rc.face_flag[i]:
+            stevec += 1
+
+        if stevec == 3:
+            rc.get_logger().info("Tri obrazi so bili najdeni!")
+            rc.dock()
+            while rc.is_docked is None:
+                rclpy.spin_once(rc, timeout_sec=0.5)
+            if rc.is_docked:
+                return True
+    
 def angle(vector1, vector2):
     dot_product = sum(a*b for a, b in zip(vector1, vector2))
     magnitude1 = math.sqrt(sum(a**2 for a in vector1))
@@ -367,28 +445,38 @@ def approach_face(rc):
 
             goal_pose.pose.position.x = goal_x
             goal_pose.pose.position.y = goal_y
+            # set goal orientation to zero
             goal_pose.pose.orientation = goal_orientation
-        
             rc.goToPose(goal_pose)
             #rc.info("1")
             while not rc.isTaskComplete():
                 rc.get_logger().info("Grem do obraza LOL2")
                 # rc.cleaner()
-                time.sleep(1)                    
+                time.sleep(1)     
+
             #text to speach
             rc.get_logger().info("Text to speech!")
             rc.engine.say("Hello")
             rc.engine.runAndWait()
             rc.face_flag[j] = True
 
-            #restoraj goal
-            rc.goToPose(goal_save)
-            while not rc.isTaskComplete():
-                rc.get_logger().info("Waiting for the task to complete... LOL3")
-                # tuki approach face odkomentiraš da bi ti takoj šel do naslednjega obraza
-                approach_face(rc)
-                # rc.cleaner()
-                time.sleep(1)
+            # tuki se to odkomentira če hočmo da gre k zazna tri obraze nazaj v dock
+            # if check_if_three_faces(rc):
+            #     return  # return if three faces are detected
+
+            if not rc.is_docked:
+                #restoraj goal
+                rc.goToPose(goal_save)
+                while not rc.isTaskComplete():
+                    rc.get_logger().info("Waiting for the task to complete... LOL3")
+                    # tuki approach face odkomentiraš da bi ti takoj šel do naslednjega obraza
+                    approach_face(rc)
+                    
+                    # rc.cleaner()
+                    time.sleep(1)
+            else:
+                rc.cancelTask()
+                break
 
 def main(args=None):
     
@@ -397,6 +485,7 @@ def main(args=None):
 
     # Wait until Nav2 and Localizer are available
     rc.waitUntilNav2Active()
+    rc.initial_pose = rc.current_pose
 
     # Check if the robot is docked, only continue when a message is recieved
     while rc.is_docked is None:
@@ -414,14 +503,22 @@ def main(args=None):
     list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
 
     for i in range(len(list_of_points)):
-        goal_pose.pose.position.x = list_of_points[i][0]
-        goal_pose.pose.position.y = list_of_points[i][1]
-        goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
-        rc.goToPose(goal_pose)
-        while not rc.isTaskComplete():
-            rc.info("Waiting for the task to complete... LOL")
-            approach_face(rc)
-            time.sleep(1)
+        if not rc.is_docked:
+            goal_pose.pose.position.x = list_of_points[i][0]
+            goal_pose.pose.position.y = list_of_points[i][1]
+            goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
+            rc.goToPose(goal_pose)
+            while not rc.isTaskComplete():
+                if not rc.is_docked:
+                    rc.get_logger().info("Waiting for the task to complete... LOL")
+                    approach_face(rc)
+                    time.sleep(1)
+                else:
+                    rc.cancelTask()
+                    break
+        else:
+            rc.cancelTask()
+            break
     
     rc.destroyNode()
 
