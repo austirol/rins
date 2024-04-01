@@ -212,7 +212,7 @@ class RobotCommander(Node):
     
     def dock(self):
         """Perform Dock action."""
-        self.info("Going to initial pose... NAmreč zaznael sem tri obraze")
+        self.info("Going to initial pose... Namreč zaznal sem tri obraze")
         goal_initial_pose = PoseStamped()
         goal_initial_pose.header.frame_id = 'map'
         goal_initial_pose.header.stamp = self.get_clock().now().to_msg()
@@ -221,7 +221,7 @@ class RobotCommander(Node):
         self.cancelTask()
         self.goToPose(goal_initial_pose)
         while not self.isTaskComplete():
-            time.sleep(0.1)
+            time.sleep(1)
             self.get_logger().info("Waiting for the task to complete... LOL4")
         
 
@@ -229,7 +229,7 @@ class RobotCommander(Node):
         self.dock_send_goal()
             
         while not self.isDockComplete():
-            time.sleep(0.1)
+            time.sleep(1)
 
     def dock_send_goal(self):
         goal_msg = Dock.Goal()
@@ -409,7 +409,14 @@ def angle(vector1, vector2):
     magnitude2 = math.sqrt(sum(b**2 for b in vector2))
     cos_theta = dot_product/(magnitude1*magnitude2)
     theta = math.acos(cos_theta)
-    return ((360 - 2*theta)/4)/360*3.14
+    return theta
+
+def quaternion_to_yaw(quaternion):
+    x, y, z, w = quaternion
+    sin_yaw = 2.0 * (w * z + x * y)
+    cos_yaw = 1.0 - 2.0 * (y * y + z * z)
+    yaw = np.arctan2(sin_yaw, cos_yaw)
+    return yaw
 
 def approach_face(rc):
     #rc.get_logger().info(f"tukaj, faces:{rc.face_pos}, flags:{rc.face_flag}")
@@ -433,7 +440,6 @@ def approach_face(rc):
             current_y = float(pos_save.pose.position.y)
             goal_x = float(rc.face_pos[j]["x"])
             goal_y = float(rc.face_pos[j]["y"])
-            goal_orientation = rc.YawToQuaternion(angle([current_x, current_y], [goal_x, goal_y]))
 
             current_pose_vector = np.array([current_x, current_y])
             goal_pose_vector = np.array([goal_x, goal_y])
@@ -445,14 +451,22 @@ def approach_face(rc):
 
             goal_pose.pose.position.x = goal_x
             goal_pose.pose.position.y = goal_y
-            # set goal orientation to zero
-            goal_pose.pose.orientation = goal_orientation
+            goal_pose.pose.orientation = pos_save.pose.orientation
+
             rc.goToPose(goal_pose)
             #rc.info("1")
             while not rc.isTaskComplete():
                 rc.get_logger().info("Grem do obraza LOL2")
                 # rc.cleaner()
-                time.sleep(1)     
+                time.sleep(1)
+            yaw_orientation = quaternion_to_yaw([pos_save.pose.orientation.x,
+                                                  pos_save.pose.orientation.y,
+                                                  pos_save.pose.orientation.z,
+                                                  pos_save.pose.orientation.w])
+            orientation_vector = np.array([np.cos(yaw_orientation), np.sin(yaw_orientation)])
+            kot = angle(orientation_vector, direction_vector)
+            rc.get_logger().info(str(kot))
+            rc.spin(kot)
 
             #text to speach
             rc.get_logger().info("Text to speech!")
@@ -512,7 +526,7 @@ def main(args=None):
                 if not rc.is_docked:
                     rc.get_logger().info("Waiting for the task to complete... LOL")
                     approach_face(rc)
-                    time.sleep(1)
+                    time.sleep(0.1)
                 else:
                     rc.cancelTask()
                     break
