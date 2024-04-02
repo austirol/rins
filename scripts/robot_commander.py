@@ -418,6 +418,17 @@ def quaternion_to_yaw(quaternion):
     yaw = np.arctan2(sin_yaw, cos_yaw)
     return yaw
 
+def generate_goal_message(self, x, y, theta=0.2):
+        goal_pose = PoseStamped()
+        goal_pose.header.frame_id = 'map'
+        goal_pose.header.stamp = self.get_clock().now().to_msg()
+
+        goal_pose.pose.position.x = x
+        goal_pose.pose.position.y = y
+        goal_pose.pose.orientation = self.YawToQuaternion(theta)
+
+        return goal_pose
+
 def approach_face(rc):
     #rc.get_logger().info(f"tukaj, faces:{rc.face_pos}, flags:{rc.face_flag}")
     for j, flag in enumerate(rc.face_flag):
@@ -426,14 +437,15 @@ def approach_face(rc):
             goal_save = rc.goal_now
             #shrani trenutno pozicijo
             pos_save = rc.current_pose
+            
             #skenslaj goal
             rc.cancelTask()
             time.sleep(1)
             
             #pojdi do face
-            goal_pose = PoseStamped()
-            goal_pose.header.frame_id = 'map'
-            goal_pose.header.stamp = rc.get_clock().now().to_msg()
+            # goal_pose = PoseStamped()
+            # goal_pose.header.frame_id = 'map'
+            # goal_pose.header.stamp = rc.get_clock().now().to_msg()
             
             # goal_pose +/- 0.2 metra
             current_x = float(pos_save.pose.position.x)
@@ -446,12 +458,18 @@ def approach_face(rc):
             direction_vector = goal_pose_vector - current_pose_vector
             normalized_direction = direction_vector / np.linalg.norm(direction_vector)
             new_goal_pose = goal_pose_vector - 0.3 * normalized_direction
-            goal_x = float(new_goal_pose[0])
-            goal_y = float(new_goal_pose[1])
+            goal_x_new = float(new_goal_pose[0])
+            goal_y_new = float(new_goal_pose[1])
+            #goal_pose.pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
 
-            goal_pose.pose.position.x = goal_x
-            goal_pose.pose.position.y = goal_y
-            goal_pose.pose.orientation = pos_save.pose.orientation
+            # kot med face_pos in goal_pos
+            # goal_pose.pose.position.x = goal_x_new
+            # goal_pose.pose.position.y = goal_y_new
+
+            razlika_y = goal_y - goal_y_new
+            razlika_x = goal_x - goal_x_new
+            kot = math.atan2(razlika_y, razlika_x)
+            goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new, kot)
 
             rc.goToPose(goal_pose)
             #rc.info("1")
@@ -459,14 +477,16 @@ def approach_face(rc):
                 rc.get_logger().info("Grem do obraza LOL2")
                 # rc.cleaner()
                 time.sleep(1)
-            yaw_orientation = quaternion_to_yaw([pos_save.pose.orientation.x,
-                                                  pos_save.pose.orientation.y,
-                                                  pos_save.pose.orientation.z,
-                                                  pos_save.pose.orientation.w])
-            orientation_vector = np.array([np.cos(yaw_orientation), np.sin(yaw_orientation)])
-            kot = angle(orientation_vector, direction_vector)
-            rc.get_logger().info(str(kot))
-            rc.spin(kot)
+
+
+            # yaw_orientation = quaternion_to_yaw([pos_save.pose.orientation.x,
+            #                                       pos_save.pose.orientation.y,
+            #                                       pos_save.pose.orientation.z,
+            #                                       pos_save.pose.orientation.w])
+            # orientation_vector = np.array([np.cos(yaw_orientation), np.sin(yaw_orientation)])
+            # kot = angle(orientation_vector, direction_vector)
+            # rc.get_logger().info(str(kot))
+            # rc.spin(kot)
 
             #text to speach
             rc.get_logger().info("Text to speech!")
