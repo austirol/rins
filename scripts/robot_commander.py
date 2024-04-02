@@ -432,7 +432,7 @@ def generate_goal_message(self, x, y, theta=0.2):
 def approach_face(rc):
     #rc.get_logger().info(f"tukaj, faces:{rc.face_pos}, flags:{rc.face_flag}")
     for j, flag in enumerate(rc.face_flag):
-        if not flag:
+        if not flag and not rc.is_docked:
             #shrani trenutni goal
             goal_save = rc.goal_now
             #shrani trenutno pozicijo
@@ -495,8 +495,8 @@ def approach_face(rc):
             rc.face_flag[j] = True
 
             # tuki se to odkomentira če hočmo da gre k zazna tri obraze nazaj v dock
-            # if check_if_three_faces(rc):
-            #     return  # return if three faces are detected
+            if check_if_three_faces(rc):
+                return  # return if three faces are detected
 
             if not rc.is_docked:
                 #restoraj goal
