@@ -28,6 +28,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/detect_people.py
+  scripts/parking_detect.py
   scripts/robot_commander.py
   scripts/map_goals.py
   scripts/transform_point.py
