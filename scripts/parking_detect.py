@@ -63,6 +63,7 @@ class ParkingDetector(Node):
         #cv2.namedWindow("Binary Image", cv2.WINDOW_NORMAL)
         #cv2.namedWindow("Detected contours", cv2.WINDOW_NORMAL)
         #cv2.namedWindow("Detected rings", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("Circle Hough Transform", cv2.WINDOW_NORMAL)
 
     def circle_hough_transform(self, data):
         # Apply Hough Circle Transform
@@ -78,9 +79,11 @@ class ParkingDetector(Node):
         img, x,y = hough_for_circles(pil_img, img.shape[1], img.shape[0], 105, 110, 100, 15, pil_img)
         print("DID A HOUGH TRANSFORM")
 
-        plt.imshow(img)
-        plt.pause(0.01)  # Adjust the pause duration as needed
-        plt.draw()
+        if (x == 0 or y == 0):
+            return
+        
+        cv2.imshow("Circle Hough Transform", img)
+        cv2.waitKey(1)
 
         # apend the parking position to the list
         self.parking_pos.append((x,y))
@@ -92,7 +95,7 @@ class ParkingDetector(Node):
         point_step = data.point_step
         row_step = data.row_step
 
-        # iterate over face coordinates
+        # iterate over parking
         for x,y in self.parking_pos:
 
             # get 3-channel representation of the poitn cloud in numpy format
@@ -101,7 +104,7 @@ class ParkingDetector(Node):
 
             # read center coordinates
             d = a[y,x,:]
-
+            
             # create marker
             marker = Marker()
 
@@ -327,6 +330,9 @@ def hough_for_circles(image, width, height, rmin, rmax, steps, threshold, input_
     print(f"Biggest circle at: {biggest_x}, {biggest_y}, {biggest_r}")
 
     draw.ellipse((biggest_x - biggest_r, biggest_y - biggest_r, biggest_x + biggest_r, biggest_y + biggest_r), outline=(255, 0, 0))
+    draw.point((biggest_x, biggest_y), fill=(255, 0, 0))
+
+    input_image = cv2.cvtColor(np.array(input_image), cv2.COLOR_RGB2BGR)
 
 
     # for x in range(width):

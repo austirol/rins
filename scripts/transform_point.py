@@ -48,6 +48,8 @@ class TranformPoints(Node):
         # self.timer = self.create_timer(timer_period, self.timer_callback)
         self.face_pos = []
 
+        self.parking_pos = []
+
     def timer_callback(self, msg):
         # Create a PointStamped in the /base_link frame of the robot
         # The point is located 0.5m in from of the robot
@@ -118,7 +120,7 @@ class TranformPoints(Node):
         point_in_robot_frame.header.frame_id = "/base_link"
         point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
 
-        point_in_robot_frame.point.x = msg.pose.position.x
+        point_in_robot_frame.point.x = msg.pose.position.x - 0.5
         point_in_robot_frame.point.y = msg.pose.position.y
         point_in_robot_frame.point.z = msg.pose.position.z 
 
@@ -130,23 +132,32 @@ class TranformPoints(Node):
             # An example of how you can get a transform from /base_link frame to the /map frame
             # as it is at time_now, wait for timeout for it to become available
             trans = self.tf_buffer.lookup_transform("map", "base_link", time_now, timeout)
-            self.get_logger().info(f"Looks like the transform is available.")
 
             # Now we apply the transform to transform the point_in_robot_frame to the map frame
             # The header in the result will be copied from the Header of the transform
             point_in_map_frame = tfg.do_transform_point(point_in_robot_frame, trans)
-            self.get_logger().info(f"We transformed a PointStamped! JUHEEEJ: {point_in_map_frame}")
-
+            
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
             marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
 
-            
-            
-            self.marker_pub.publish(marker_in_map_frame)
-            self.face_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
-            # log
-            self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
-            self.marker_id += 1
+            if (len(self.parking_pos) == 0):
+                self.marker_pub.publish(marker_in_map_frame)
+                self.parking_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
+                # log
+                self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
+                self.marker_id += 1
+            else:
+                for i in self.parking_pos:
+                    if abs(i["x"]-point_in_map_frame.point.x) < 0.8 and abs(i["y"]-point_in_map_frame.point.y) < 0.8 and abs(i["z"]-point_in_map_frame.point.z) < 0.8:
+                        # log
+                        self.get_logger().info(f"ISTI")
+                        break
+                else:
+                    self.marker_pub.publish(marker_in_map_frame)
+                    self.parking_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
+                    # log
+                    self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
+                    self.marker_id += 1
 
             # # Publish the marker if marker_id is set
             #self.marker_pub.publish(marker_in_map_frame)
@@ -163,7 +174,7 @@ class TranformPoints(Node):
 
         marker.header = point_stamped.header
 
-        marker.type = marker.CUBE
+        marker.type = marker.SPHERE
         marker.action = marker.ADD
         marker.id = marker_id
 
@@ -181,7 +192,7 @@ class TranformPoints(Node):
 
         # Set the pose of the marker
         marker.pose.position.x = point_stamped.point.x
-        marker.pose.position.y = point_stamped.point.y
+        marker.pose.position.y = point_stamped.point.y 
         marker.pose.position.z = point_stamped.point.z
 
         return marker
