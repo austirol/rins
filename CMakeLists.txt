@@ -63,6 +63,8 @@ install(DIRECTORY
   launch
   config
   worlds
+  meshes
+  urdf
   maps
   DESTINATION share/${PROJECT_NAME}/
 )
@@ -75,6 +77,7 @@ install(TARGETS
 )
 
 install(PROGRAMS
+  scripts/arm_mover_actions.py
   scripts/detect_people.py
   scripts/detect_rings.py
   scripts/parking_detect.py
