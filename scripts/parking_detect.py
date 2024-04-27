@@ -14,7 +14,7 @@ from geometry_msgs.msg import PointStamped, Vector3, Pose
 from sensor_msgs_py import point_cloud2 as pc2
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker, MarkerArray
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, Bool, String
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, qos_profile_sensor_data, QoSReliabilityPolicy, QoSProfile
 
 qos_profile = QoSProfile(
@@ -52,6 +52,8 @@ class ParkingDetector(Node):
 
         self.marker_pub = self.create_publisher(Marker, "/parking_marker", QoSReliabilityPolicy.BEST_EFFORT)
 
+        self.when_to_park_sub = self.create_subscription(Bool, "/when_to_park", self.when_to_park_callback, 1)
+        self.start_parking = False
 
         # Publiser for the visualization markers
         # self.marker_pub = self.create_publisher(Marker, "/ring", QoSReliabilityPolicy.BEST_EFFORT)
@@ -65,7 +67,13 @@ class ParkingDetector(Node):
         #cv2.namedWindow("Detected rings", cv2.WINDOW_NORMAL)
         cv2.namedWindow("Circle Hough Transform", cv2.WINDOW_NORMAL)
 
+    def when_to_park_callback(self, data):
+        self.start_parking = True
+
     def circle_hough_transform(self, data):
+
+        if self.start_parking == False:
+            return
         # Apply Hough Circle Transform
         try:
             img = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -159,7 +167,7 @@ class ParkingDetector(Node):
         # Binarize the image, there are different ways to do it
         #ret, thresh = cv2.threshold(img, 50, 255, 0)
         #ret, thresh = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY)
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 30)
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 0, 30)
         cv2.imshow("Binary Image", thresh)
         cv2.waitKey(1)
 

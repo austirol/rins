@@ -92,12 +92,13 @@ class RobotCommander(Node):
         self.top_camera_pub = self.create_publisher(String, '/arm_command', 1)
         # publisher za ringe kdaj začne detectad
         self.when_to_detect_rings = self.create_publisher(Bool, '/when_to_detect_rings', 1)
+        self.when_to_park_pub = self.create_publisher(Bool, '/when_to_park', 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
-        # green ring listner
         self.green_ring_sub = self.create_subscription(Marker, "/green_ring", self.green_ring_handler, 1)
-        
+        self.parking_spot_sub = self.create_subscription(Marker, "/marker_pos_parking", self.parking_pos_handler, 1)
+
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.spin_client = ActionClient(self, Spin, 'spin')
@@ -112,8 +113,23 @@ class RobotCommander(Node):
         self.green_ring_pos = []
         self.green_ring_flag = False
 
+        # parking
+        self.parking_spot = []
+
         self.get_logger().info(f"Robot commander has been initialized!")
 
+
+    def parking_pos_handler(self, msg):
+        x = msg.pose.position.x
+        y = msg.pose.position.y
+        z = msg.pose.position.z
+
+        point = {"x":x, "y":y, "z":z}
+
+        self.parking_spot.append(point)
+        print("Parking spot detected!")
+
+        return
 
     def face_handler(self, msg):
         x = msg.pose.position.x
@@ -537,7 +553,7 @@ def approach_face(rc):
                 break
 
 def approach_green_ring(rc):
-    # there is only one green ring so we can just take the first element
+    # if there is only one green ring so we can just take the first element
     if (len(rc.green_ring_pos) == 0):
         return
     
@@ -547,8 +563,8 @@ def approach_green_ring(rc):
         
     current_pos = rc.current_pose
     point = rc.green_ring_pos[0]
-    goal_x = float(point["x"]) - 0.05
-    goal_y = float(point["y"]) - 0.05
+    goal_x = float(point["x"])
+    goal_y = float(point["y"])
 
 
     goal_pose = generate_goal_message(rc, goal_x, goal_y)
@@ -563,7 +579,45 @@ def approach_green_ring(rc):
             break
 
         current_pos = rc.current_pose
+        time.sleep(2)
+
+    # spremeni kamero
+    rc.get_logger().info("Spreminjam kamero v parking mode")
+    msg = String()
+    msg.data = "look_for_parking"
+    rc.top_camera_pub.publish(msg)
+
+    time.sleep(2)
+
+    # publish to /when_to_park
+    msg = Bool()
+    msg.data = True
+    rc.when_to_park_pub.publish(msg)
+
+    # when parking pose is received spin until
+    while len(rc.parking_spot) == 0:
         time.sleep(1)
+
+    # go to parking spot
+    current_pos = rc.current_pose
+    point = rc.parking_spot[0]
+
+    goal_x = float(point["x"])
+    goal_y = float(point["y"])
+
+    goal_pose = generate_goal_message(rc, goal_x, goal_y)
+
+    rc.goToPose(goal_pose)
+    while not rc.isTaskComplete():
+        rc.get_logger().info("Parkiram ....")
+        # check if current pose is the same pose as the one before
+        # if current_pos == rc.current_pose:
+        #     rc.cancelTask()
+        #     rc.get_logger().info("Na istem mestu zato kenslam task")
+        #     break
+
+        # current_pos = rc.current_pose
+        time.sleep(2)
 
     rc.green_ring_flag = True
 
@@ -618,6 +672,7 @@ def main(args=None):
         else:
             rc.cancelTask()
             break
+
 
     # for i in range(len(list_of_points)):
     #     if not rc.is_docked:

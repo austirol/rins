@@ -40,6 +40,7 @@ class TranformPoints(Node):
         # For publishing the markers
         self.marker_pub = self.create_publisher(Marker, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
         self.marker_pub2 = self.create_publisher(Marker, "/marker_pos_rings", QoSReliabilityPolicy.BEST_EFFORT)
+        self.marker_pub3 = self.create_publisher(Marker, "/marker_pos_parking", QoSReliabilityPolicy.BEST_EFFORT)
 
         # for green ring to park under
         self.green_ring_pub = self.create_publisher(Marker, "/green_ring", QoSReliabilityPolicy.BEST_EFFORT)
@@ -124,7 +125,7 @@ class TranformPoints(Node):
         point_in_robot_frame.header.frame_id = "/base_link"
         point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
 
-        point_in_robot_frame.point.x = msg.pose.position.x - 0.5
+        point_in_robot_frame.point.x = msg.pose.position.x + 0.1
         point_in_robot_frame.point.y = msg.pose.position.y
         point_in_robot_frame.point.z = msg.pose.position.z 
 
@@ -142,10 +143,10 @@ class TranformPoints(Node):
             point_in_map_frame = tfg.do_transform_point(point_in_robot_frame, trans)
             
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
-            marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
+            marker_in_map_frame = self.create_marker_parking(point_in_map_frame, self.marker_id)
 
             if (len(self.parking_pos) == 0):
-                self.marker_pub.publish(marker_in_map_frame)
+                self.marker_pub3.publish(marker_in_map_frame)
                 self.parking_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                 # log
                 self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
@@ -157,7 +158,7 @@ class TranformPoints(Node):
                         self.get_logger().info(f"ISTI")
                         break
                 else:
-                    self.marker_pub.publish(marker_in_map_frame)
+                    self.marker_pub3.publish(marker_in_map_frame)
                     self.parking_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                     # log
                     self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
@@ -284,6 +285,35 @@ class TranformPoints(Node):
         # Set the pose of the marker
         marker.pose.position.x = point_stamped.point.x
         marker.pose.position.y = point_stamped.point.y 
+        marker.pose.position.z = point_stamped.point.z
+
+        return marker
+    
+    def create_marker_parking(self, point_stamped, marker_id):
+        """You can the description of the Marker message here: https://docs.ros2.org/galactic/api/visualization_msgs/msg/Marker.html"""
+        marker = Marker()
+
+        marker.header = point_stamped.header
+
+        marker.type = marker.SPHERE
+        marker.action = marker.ADD
+        marker.id = marker_id
+
+        # Set the scale of the marker
+        scale = 0.15
+        marker.scale.x = scale
+        marker.scale.y = scale
+        marker.scale.z = scale
+
+        # Set the color
+        marker.color.r = 0.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+        marker.color.a = 1.0
+
+        # Set the pose of the marker
+        marker.pose.position.x = point_stamped.point.x
+        marker.pose.position.y = point_stamped.point.y
         marker.pose.position.z = point_stamped.point.z
 
         return marker
