@@ -95,6 +95,8 @@ class RobotCommander(Node):
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
+        # green ring listner
+        self.green_ring_sub = self.create_subscription(Marker, "/green_ring", self.green_ring_handler, 1)
         
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
@@ -105,6 +107,10 @@ class RobotCommander(Node):
         # pictures
         self.face_pos = []
         self.face_flag = []
+
+        # green ring
+        self.green_ring_pos = []
+        self.green_ring_flag = False
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
@@ -121,7 +127,17 @@ class RobotCommander(Node):
         self.face_flag.append(False)
 
         return
+    
+    def green_ring_handler(self, msg):
+        print("Green ring detected!")
+        x = msg.pose.position.x
+        y = msg.pose.position.y
+        z = msg.pose.position.z
 
+        point = {"x":x, "y":y, "z":z}
+
+        self.green_ring_pos.append(point)
+        return
 
     def destroyNode(self):
         self.nav_to_pose_client.destroy()
@@ -520,6 +536,38 @@ def approach_face(rc):
                 rc.cancelTask()
                 break
 
+def approach_green_ring(rc):
+    # there is only one green ring so we can just take the first element
+    if (len(rc.green_ring_pos) == 0):
+        return
+    
+    rc.cancelTask()
+    time.sleep(1)
+    rc.get_logger().info("Končujem trenutni task da grem do zelenga obroča")
+        
+    current_pos = rc.current_pose
+    point = rc.green_ring_pos[0]
+    goal_x = float(point["x"]) - 0.05
+    goal_y = float(point["y"]) - 0.05
+
+
+    goal_pose = generate_goal_message(rc, goal_x, goal_y)
+
+    rc.goToPose(goal_pose)
+    while not rc.isTaskComplete():
+        rc.get_logger().info("Premikam se do zelenega obroča")
+        # check if current pose is the same pose as the one before
+        if current_pos == rc.current_pose:
+            rc.cancelTask()
+            rc.get_logger().info("Na istem mestu zato kenslam task")
+            break
+
+        current_pos = rc.current_pose
+        time.sleep(1)
+
+    rc.green_ring_flag = True
+
+
 def main(args=None):
     
     rclpy.init(args=args)
@@ -556,6 +604,8 @@ def main(args=None):
     rc.when_to_detect_rings.publish(msg)
 
     for i in range(len(list_of_points)):
+        if rc.green_ring_flag:
+            break
         if not rc.is_docked:
             goal_pose.pose.position.x = list_of_points[i][0]
             goal_pose.pose.position.y = list_of_points[i][1]
@@ -563,6 +613,7 @@ def main(args=None):
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
                 rc.info("Waiting for the task to complete...")
+                approach_green_ring(rc)
                 time.sleep(1)
         else:
             rc.cancelTask()

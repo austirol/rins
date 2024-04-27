@@ -314,10 +314,11 @@ class RingDetector(Node):
             marker.pose.position.y = float(d[1])
             marker.pose.position.z = float(d[2])
 
-
             print(f"Ring at {x}, {y} is at {d[0]}, {d[1]}, {d[2]}")
             self.ring_published[self.rings.index((x,y,c))] = True
-            self.marker_pub.publish(marker)       
+            self.marker_pub.publish(marker) 
+            # če je zelen pošli koordinate robot commanderju
+                  
 
     def get_rgb_values(self, str):
         if str == "red":
