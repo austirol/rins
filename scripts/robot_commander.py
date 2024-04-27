@@ -39,6 +39,9 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 
+from std_msgs.msg import String, Bool
+
+
 
 class TaskResult(Enum):
     UNKNOWN = 0
@@ -84,6 +87,11 @@ class RobotCommander(Node):
         self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
                                                       'initialpose',
                                                       10)
+        
+        # arm publisher to change top camera
+        self.top_camera_pub = self.create_publisher(String, '/arm_command', 1)
+        # publisher za ringe kdaj začne detectad
+        self.when_to_detect_rings = self.create_publisher(Bool, '/when_to_detect_rings', 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
@@ -521,6 +529,12 @@ def main(args=None):
     rc.waitUntilNav2Active()
     rc.initial_pose = rc.current_pose
 
+    # kamera change
+    rc.get_logger().info("Publishing to /arm_command")
+    msg = String()
+    msg.data = "up"
+    rc.top_camera_pub.publish(msg)
+
     # Check if the robot is docked, only continue when a message is recieved
     while rc.is_docked is None:
         rclpy.spin_once(rc, timeout_sec=0.5)
@@ -533,8 +547,13 @@ def main(args=None):
     goal_pose = PoseStamped()
     goal_pose.header.frame_id = 'map'
     goal_pose.header.stamp = rc.get_clock().now().to_msg()
-    
+
     list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
+
+    # publish to /when_to_detect_rings
+    msg = Bool()
+    msg.data = True
+    rc.when_to_detect_rings.publish(msg)
 
     for i in range(len(list_of_points)):
         if not rc.is_docked:
@@ -543,16 +562,29 @@ def main(args=None):
             goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
-                if not rc.is_docked:
-                    rc.get_logger().info("Waiting for the task to complete... LOL")
-                    approach_face(rc)
-                    time.sleep(0.1)
-                else:
-                    rc.cancelTask()
-                    break
+                rc.info("Waiting for the task to complete...")
+                time.sleep(1)
         else:
             rc.cancelTask()
             break
+
+    # for i in range(len(list_of_points)):
+    #     if not rc.is_docked:
+    #         goal_pose.pose.position.x = list_of_points[i][0]
+    #         goal_pose.pose.position.y = list_of_points[i][1]
+    #         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
+    #         rc.goToPose(goal_pose)
+    #         while not rc.isTaskComplete():
+    #             if not rc.is_docked:
+    #                 rc.get_logger().info("Waiting for the task to complete... LOL")
+    #                 approach_face(rc)
+    #                 time.sleep(0.1)
+    #             else:
+    #                 rc.cancelTask()
+    #                 break
+    #     else:
+    #         rc.cancelTask()
+    #         break
     
     rc.destroyNode()
 

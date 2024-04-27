@@ -8,6 +8,7 @@ import numpy as np
 from sensor_msgs_py import point_cloud2 as pc2
 
 from sensor_msgs.msg import Image, PointCloud2
+from std_msgs.msg import Bool
 from geometry_msgs.msg import PointStamped, Vector3, Pose
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker, MarkerArray
@@ -29,6 +30,7 @@ class RingDetector(Node):
 
         self.depth_image = None
         self.rings = []
+        self.ring_published = []
         self.parking_spots = []
         self.colors = []
         # Basic ROS stuff
@@ -48,6 +50,8 @@ class RingDetector(Node):
         self.depth_sub = self.create_subscription(Image, "/top_camera/rgb/preview/depth", self.depth_callback, 1)
         self.pointcloud_sub = self.create_subscription(PointCloud2, "/top_camera/rgb/preview/depth/points", self.pointcloud_callback, qos_profile_sensor_data)
 
+        self.when_to_detect = self.create_subscription(Bool, "/when_to_detect_rings", self.when_to_detect_callback, 1)
+        self.ok_to_detect = False
         # Publiser for the visualization markers
         self.marker_pub = self.create_publisher(Marker, "/ring_marker", QoSReliabilityPolicy.BEST_EFFORT)
         
@@ -88,10 +92,14 @@ class RingDetector(Node):
         self.classifier = KNeighborsClassifier(n_neighbors=1)
         self.classifier.fit(self.rgb_values, self.color_labels)
 
+    def when_to_detect_callback(self, data):
+        self.ok_to_detect = True
+        print("I am ready to detect rings!")
 
     def image_callback(self, data):
-        self.get_logger().info(f"I got a new image! Will try to find rings...")
-
+        #self.get_logger().info(f"I got a new image! Will try to find rings...")
+        if not self.ok_to_detect:
+            return
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
@@ -99,6 +107,8 @@ class RingDetector(Node):
 
         if self.depth_image is not None:
             depth_image = self.depth_image
+        else:
+            return
 
         blue = cv_image[:,:,0]
         green = cv_image[:,:,1]
@@ -199,7 +209,7 @@ class RingDetector(Node):
                 #    candidates.append((e1,e2))
                 #candidates.append((e1,e2))
 
-        print("Processing is done! found", len(candidates), "candidates for rings")
+        #print("Processing is done! found", len(candidates), "candidates for rings")
 
         # Plot the rings on the image
         for c in candidates:
@@ -225,6 +235,7 @@ class RingDetector(Node):
                         if color is not None and color not in self.colors:
                             #self.get_logger().info(f"color at {point}: {color}")
                             self.rings.append((x, y, color))
+                            self.ring_published.append(False)
                             self.colors.append(color)
                             break
 
@@ -264,6 +275,8 @@ class RingDetector(Node):
 		# iterate over ring coordinates
         for x,y,c in self.rings:
             
+            if self.ring_published[self.rings.index((x,y,c))]:
+                continue
             # get 3-channel representation of the point cloud in numpy format
             a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
             a = a.reshape((height,width,3))
@@ -301,6 +314,9 @@ class RingDetector(Node):
             marker.pose.position.y = float(d[1])
             marker.pose.position.z = float(d[2])
 
+
+            print(f"Ring at {x}, {y} is at {d[0]}, {d[1]}, {d[2]}")
+            self.ring_published[self.rings.index((x,y,c))] = True
             self.marker_pub.publish(marker)       
 
     def get_rgb_values(self, str):
