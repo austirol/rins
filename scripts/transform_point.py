@@ -218,15 +218,19 @@ class TranformPoints(Node):
                         # log
                         self.get_logger().info(f"ISTI")
                         break
-                self.marker_pub2.publish(marker_in_map_frame)
+                else:
+                    self.marker_pub2.publish(marker_in_map_frame)
 
-                # if it's green ring publish it to the green_ring topic
-                if msg.color.r == 0.0 and msg.color.g == 1.0 and msg.color.b == 0.0:
-                    self.green_ring_pub.publish(marker_in_map_frame)
+                    # if it's green ring publish it to the green_ring topic
+                    # if msg.color.r == 0.0 and msg.color.g == 1.0 and msg.color.b == 0.0:
+                    #     self.green_ring_pub.publish(marker_in_map_frame)
+                    
+                    self.ring_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
+                    self.get_logger().info(f"2{self.ring_pos}")
+                    self.get_logger().info(f"RING DETECTED AT: {point_in_map_frame.point}")
+                    self.marker_id += 1
+
                 
-                self.ring_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
-                #self.get_logger().info(f"Ring detected at: {point_in_map_frame.point}")
-                self.marker_id += 1
 
         except TransformException as te:
             self.get_logger().info(f"Cound not get the transform: {te}")

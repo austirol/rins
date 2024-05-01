@@ -650,8 +650,7 @@ def main(args=None):
     goal_pose.header.frame_id = 'map'
     goal_pose.header.stamp = rc.get_clock().now().to_msg()
 
-    list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
-
+    list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[2.17, 0.45, -0.00],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
     # publish to /when_to_detect_rings
     msg = Bool()
     msg.data = True
@@ -667,7 +666,7 @@ def main(args=None):
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
                 rc.info("Waiting for the task to complete...")
-                approach_green_ring(rc)
+                #approach_green_ring(rc)
                 time.sleep(1)
         else:
             rc.cancelTask()

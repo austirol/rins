@@ -74,6 +74,7 @@ class RingDetector(Node):
             [0, 0, 255],     # Blue
             [38, 62, 84],
             [79, 119, 155],
+            [115, 121, 131],
             [78, 69, 90],
             [44, 59, 77],
             [255, 255, 0],   # Yellow
@@ -84,7 +85,7 @@ class RingDetector(Node):
         # Corresponding color labels
         self.color_labels = ["red", "red", "red", "red", "red", 
                              "green", "green", "green", "green", "green", 
-                             "blue", "blue", "blue", "blue", "blue", 
+                             "blue", "blue", "blue", "blue", "blue", "blue",
                              "yellow",
                              "gray", "gray"]
 
@@ -192,7 +193,7 @@ class RingDetector(Node):
                 border_minor = (le[1][0]-se[1][0])/2
                 border_diff = np.abs(border_major - border_minor)
 
-                if border_diff>4:
+                if border_diff>6:
                     continue
 
                 # Get the depth of the center of the ellipses
@@ -202,6 +203,8 @@ class RingDetector(Node):
                 if depth_center == 0:
                     candidates_3D.append((e1,e2))
                     candidates.append((e1,e2))
+
+            
                 #self.get_logger().info(f"{depth_center}")
 
                 #if int(se[0][1]) > 195:
@@ -223,7 +226,15 @@ class RingDetector(Node):
                                             int(e2[2]), 0, 360, 10)
                 sampled_points = e2_points[np.random.choice(e2_points.shape[0], min(10, e2_points.shape[0]), replace=False)]
 
+                center_x = int(e2[0][0])
+                center_y = int(e2[0][1])
+
+                # check if points near center are allredy in the list
+                if any(abs(center_x - x) < 0.75 and abs(center_y - y) < 0.75 for x, y, c in self.rings):
+                    continue
+
                 # Extract color information at sampled points
+                color_average = [0, 0, 0]
                 for point in sampled_points:
                     x, y = point
                     if x < 320 and y < 240:
@@ -232,13 +243,31 @@ class RingDetector(Node):
                         r = red[y, x]
                         #self.get_logger().info(f"colors at {point}: {r}, {g}, {b}")
                         color = self.get_color(r, g, b)
-                        if color is not None and color not in self.colors:
+                        if color is not None:
                             #self.get_logger().info(f"color at {point}: {color}")
-                            self.rings.append((x, y, color))
-                            self.ring_published.append(False)
-                            self.colors.append(color)
+
+                            # calculate the average of the points
+                            color_average[0] += r
+                            color_average[1] += g
+                            color_average[2] += b
+
+
+                            #self.get_logger().info(f"colors at {point}: {r}, {g}, {b}")
                             break
 
+            if color_average[0] != 0 and color_average[1] != 0 and color_average[2] != 0:
+                color = self.get_color(color_average[2], color_average[1], color_average[0])
+                if color is not None and color not in self.colors:
+                    # put center of the ellipse in the list
+                    x = int(e2[0][0])
+                    y = int(e2[0][1])
+                    self.rings.append((x, y, color))
+                    self.ring_published.append(False)
+                    self.colors.append(color)
+            else:
+                continue    
+
+            
             # drawing the ellipses on the image
             cv2.ellipse(cv_image, e1, (0, 255, 0), 2)
             cv2.ellipse(cv_image, e2, (0, 255, 0), 2)
@@ -257,10 +286,10 @@ class RingDetector(Node):
             y_min = y1 if y1 > 0 else 0
             y_max = y2 if y2 < cv_image.shape[1] else cv_image.shape[1]
 
-            
             if len(candidates) > 0:
                 cv2.imshow("Detected rings", cv_image)
                 cv2.waitKey(1)
+
             
     def get_color(self, r, g, b):
         pred = self.classifier.predict([[r,g,b]])
@@ -284,6 +313,14 @@ class RingDetector(Node):
             # read center coordinates
             d = a[y,x,:]
             if float(d[0]) == float('inf') and float(d[1]) == float('inf') and float(d[2]) == float('inf'):
+                continue
+
+            point_x = d[0]
+            point_y = d[1]
+            point_z = d[2]
+
+            if any(abs(point_x - x) < 0.75 and abs(point_y - y) < 0.75 for x, y, c in self.rings):
+                self.ring_published[self.rings.index((x,y,c))] = True
                 continue
             
             # create marker
@@ -317,7 +354,6 @@ class RingDetector(Node):
             print(f"Ring at {x}, {y} is at {d[0]}, {d[1]}, {d[2]}")
             self.ring_published[self.rings.index((x,y,c))] = True
             self.marker_pub.publish(marker) 
-            # če je zelen pošli koordinate robot commanderju
                   
 
     def get_rgb_values(self, str):
