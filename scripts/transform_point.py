@@ -12,6 +12,8 @@ from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
+from std_msgs.msg import Bool
+
 from rclpy.qos import qos_profile_sensor_data, QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
@@ -44,6 +46,7 @@ class TranformPoints(Node):
 
         # for green ring to park under
         self.green_ring_pub = self.create_publisher(Marker, "/green_ring", QoSReliabilityPolicy.BEST_EFFORT)
+        self.is_it_the_same_ring = self.create_publisher(Bool, "/is_it_the_same_ring", 1)
         # For subscribing to the markers
         self.marker_sub = self.create_subscription(Marker, "/people_marker", self.timer_callback, 1)
         self.marker_sub_parking = self.create_subscription(Marker, "/parking_marker", self.timer_callback2, 1)
@@ -217,18 +220,26 @@ class TranformPoints(Node):
                     if abs(i["x"]-point_in_map_frame.point.x) < 0.75 and abs(i["y"]-point_in_map_frame.point.y) < 0.75 and abs(i["z"]-point_in_map_frame.point.z) < 0.75:
                         # log
                         self.get_logger().info(f"ISTI")
+                        
+                        msg = Bool()
+                        msg.data = True
+                        self.is_it_the_same_ring.publish(msg)
                         break
                 else:
                     self.marker_pub2.publish(marker_in_map_frame)
 
                     # if it's green ring publish it to the green_ring topic
-                    # if msg.color.r == 0.0 and msg.color.g == 1.0 and msg.color.b == 0.0:
-                    #     self.green_ring_pub.publish(marker_in_map_frame)
+                    if msg.color.r == 0.0 and msg.color.g == 1.0 and msg.color.b == 0.0:
+                        self.green_ring_pub.publish(marker_in_map_frame)
                     
                     self.ring_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                     self.get_logger().info(f"2{self.ring_pos}")
                     self.get_logger().info(f"RING DETECTED AT: {point_in_map_frame.point}")
                     self.marker_id += 1
+
+                    msg = Bool()
+                    msg.data = False
+                    self.is_it_the_same_ring.publish(msg)
 
                 
 

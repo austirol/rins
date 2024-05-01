@@ -51,6 +51,8 @@ class RingDetector(Node):
         self.pointcloud_sub = self.create_subscription(PointCloud2, "/top_camera/rgb/preview/depth/points", self.pointcloud_callback, qos_profile_sensor_data)
 
         self.when_to_detect = self.create_subscription(Bool, "/when_to_detect_rings", self.when_to_detect_callback, 1)
+        self.is_it_the_sae_ring = self.create_subscription(Bool, "/is_it_the_same_ring", self.is_it_the_same_ring_callback, 1)
+
         self.ok_to_detect = False
         # Publiser for the visualization markers
         self.marker_pub = self.create_publisher(Marker, "/ring_marker", QoSReliabilityPolicy.BEST_EFFORT)
@@ -63,35 +65,71 @@ class RingDetector(Node):
         self.rgb_values = [
             [255, 0, 0],     # Red
             [204, 71, 65],
+            [130, 120, 120],
             [116, 69, 68],
             [147, 53, 49],
+            [154, 143, 142],
+            [96, 33, 30],
+            [134, 134, 134],
+            [159, 153, 152],
+            [137, 105, 105],
             [190, 101, 100],
             [0, 255, 0],     # Green
             [63, 137, 62],
             [25, 124, 23],
+            [128, 136, 128],
+            [139, 150, 139],
+            [117, 131, 116],
             [102, 132, 98],
+            [126, 146, 125],
+            [46, 92, 45],
+            [71, 72, 71],
             [84, 110, 84],
             [0, 0, 255],     # Blue
             [38, 62, 84],
+            [26, 42, 58],
+            [124, 129, 133],
             [79, 119, 155],
             [115, 121, 131],
+            [123, 149, 173],
+            [150, 152, 154],
             [78, 69, 90],
             [44, 59, 77],
             [255, 255, 0],   # Yellow
             [170, 170, 170],  # Gray
-            [100, 100, 100]
+            [100, 100, 100],
+            [44, 45, 44], # Black
+            [79, 80, 80],
+            [73, 73, 73],
+            [135, 135, 135],
+            [76, 77, 76],
+            [64, 65, 65],
+            [136, 136, 136],
+            [147, 147, 147],
+            [5, 6, 5],
+            [71, 71, 71],
+            [119, 120, 119],
+            [125, 125, 125]
         ]
 
         # Corresponding color labels
-        self.color_labels = ["red", "red", "red", "red", "red", 
-                             "green", "green", "green", "green", "green", 
-                             "blue", "blue", "blue", "blue", "blue", "blue",
+        self.color_labels = ["red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red",
+                             "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green",
+                             "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue",  "blue",
                              "yellow",
-                             "gray", "gray"]
+                             "gray", "gray",
+                             "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black"]
 
         # Train the classifier
         self.classifier = KNeighborsClassifier(n_neighbors=1)
         self.classifier.fit(self.rgb_values, self.color_labels)
+
+    def is_it_the_same_ring_callback(self, data):
+        # take the last color from the list if the message is true
+        if data.data:
+            self.colors.pop()
+            self.rings.pop()
+            self.ring_published.pop()
 
     def when_to_detect_callback(self, data):
         self.ok_to_detect = True
@@ -166,7 +204,7 @@ class RingDetector(Node):
                 angle_diff = np.abs(e1[2] - e2[2])
 
                 # The centers of the two elipses should be within 5 pixels of each other (is there a better treshold?)
-                if dist >= 5:
+                if dist >= 3:
                     continue
 
                 # The rotation of the elipses should be whitin 4 degrees of eachother
@@ -193,7 +231,7 @@ class RingDetector(Node):
                 border_minor = (le[1][0]-se[1][0])/2
                 border_diff = np.abs(border_major - border_minor)
 
-                if border_diff>6:
+                if border_diff > 4:
                     continue
 
                 # Get the depth of the center of the ellipses
@@ -223,11 +261,18 @@ class RingDetector(Node):
             if c in candidates_3D:
                 # Get a few points along the perimeter of the smaller ellipse
                 e2_points = cv2.ellipse2Poly((int(e2[0][0]), int(e2[0][1])), (int(e2[1][0] / 2), int(e2[1][1] / 2)),
-                                            int(e2[2]), 0, 360, 10)
-                sampled_points = e2_points[np.random.choice(e2_points.shape[0], min(10, e2_points.shape[0]), replace=False)]
+                                            int(e2[2]), 0, 360, 15)
+                sampled_points = e2_points[np.random.choice(e2_points.shape[0], min(15, e2_points.shape[0]), replace=False)]
 
                 center_x = int(e2[0][0])
                 center_y = int(e2[0][1])
+
+                # Get a bounding box, around the first ellipse ('average' of both elipsis)
+                size = (e1[1][0]+e1[1][1])/2
+                center = (e1[0][1], e1[0][0])
+
+                if (size / 2) > 26:
+                    continue
 
                 # check if points near center are allredy in the list
                 if any(abs(center_x - x) < 0.75 and abs(center_y - y) < 0.75 for x, y, c in self.rings):
@@ -242,23 +287,25 @@ class RingDetector(Node):
                         g = green[y, x]
                         r = red[y, x]
                         #self.get_logger().info(f"colors at {point}: {r}, {g}, {b}")
-                        color = self.get_color(r, g, b)
-                        if color is not None:
-                            #self.get_logger().info(f"color at {point}: {color}")
+                        
+                        #self.get_logger().info(f"color at {point}: {color}")
 
-                            # calculate the average of the points
-                            color_average[0] += r
-                            color_average[1] += g
-                            color_average[2] += b
+                        # calculate the average of the points
+                        color_average[0] += r
+                        color_average[1] += g
+                        color_average[2] += b
 
-
-                            #self.get_logger().info(f"colors at {point}: {r}, {g}, {b}")
-                            break
+                color_average[0] = color_average[0] / len(sampled_points)
+                color_average[1] = color_average[1] / len(sampled_points)
+                color_average[2] = color_average[2] / len(sampled_points)
 
             if color_average[0] != 0 and color_average[1] != 0 and color_average[2] != 0:
-                color = self.get_color(color_average[2], color_average[1], color_average[0])
+               
+                color = self.get_color(color_average[0], color_average[1], color_average[2])
                 if color is not None and color not in self.colors:
                     # put center of the ellipse in the list
+                    print(f'color average: {color_average}')
+                    print("CLOR", color)
                     x = int(e2[0][0])
                     y = int(e2[0][1])
                     self.rings.append((x, y, color))
@@ -271,10 +318,6 @@ class RingDetector(Node):
             # drawing the ellipses on the image
             cv2.ellipse(cv_image, e1, (0, 255, 0), 2)
             cv2.ellipse(cv_image, e2, (0, 255, 0), 2)
-
-            # Get a bounding box, around the first ellipse ('average' of both elipsis)
-            size = (e1[1][0]+e1[1][1])/2
-            center = (e1[0][1], e1[0][0])
 
             x1 = int(center[0] - size / 2)
             x2 = int(center[0] + size / 2)
@@ -365,6 +408,8 @@ class RingDetector(Node):
             return [0., 0., 1.]
         elif str == "yellow":
             return [1., 1., 0.]
+        elif str == "gray":
+            return [0.5, 0.5, 0.5]
         else:
             return [0., 0., 0.]
 
