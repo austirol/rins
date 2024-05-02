@@ -99,6 +99,7 @@ class RobotCommander(Node):
         self.green_ring_sub = self.create_subscription(Marker, "/green_ring", self.green_ring_handler, 1)
         self.parking_spot_sub = self.create_subscription(Marker, "/marker_pos_parking", self.parking_pos_handler, 1)
 
+
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.spin_client = ActionClient(self, Spin, 'spin')
@@ -563,23 +564,21 @@ def approach_green_ring(rc):
         
     current_pos = rc.current_pose
     point = rc.green_ring_pos[0]
-    goal_x = float(point["x"])
-    goal_y = float(point["y"])
-
+    goal_x = float(point["x"]) 
+    goal_y = float(point["y"]) 
 
     goal_pose = generate_goal_message(rc, goal_x, goal_y)
 
     rc.goToPose(goal_pose)
     while not rc.isTaskComplete():
         rc.get_logger().info("Premikam se do zelenega obroča")
-        # check if current pose is the same pose as the one before
-        if current_pos == rc.current_pose:
-            rc.cancelTask()
-            rc.get_logger().info("Na istem mestu zato kenslam task")
-            break
+        # if (current_pos == rc.current_pose):
+        #     rc.get_logger().info("Na istem mestu že tri sekunde")
+        #     rc.cancelTask()
+        #     break
 
         current_pos = rc.current_pose
-        time.sleep(2)
+        time.sleep(3)
 
     # spremeni kamero
     rc.get_logger().info("Spreminjam kamero v parking mode")
@@ -587,16 +586,43 @@ def approach_green_ring(rc):
     msg.data = "look_for_parking"
     rc.top_camera_pub.publish(msg)
 
-    time.sleep(2)
+    time.sleep(6)
 
     # publish to /when_to_park
     msg = Bool()
     msg.data = True
     rc.when_to_park_pub.publish(msg)
 
-    # when parking pose is received spin until
+    # make do 360 spin slowly untill parking spot is detected
     while len(rc.parking_spot) == 0:
-        time.sleep(1)
+        rc.spin(3.14, 10)
+
+
+    # move a little bit back
+    current_pos = rc.current_pose
+
+    goal_pose = generate_goal_message(rc, current_pos.pose.position.x - 0.2, current_pos.pose.position.y)
+
+    rc.goToPose(goal_pose)
+    stuck = False
+    while not rc.isTaskComplete():
+        rc.get_logger().info("Premikam se nazaj da bom lahko parkiral")
+        if (current_pos == rc.current_pose):
+            print("premaknil se bom naprej ker nazaj ne morem")
+            stuck = True
+            break
+           
+        current_pos = rc.current_pose
+
+        time.sleep(3)
+
+    if stuck:
+        goal_pose = generate_goal_message(rc, current_pos.pose.position.x + 0.4, current_pos.pose.position.y)
+        rc.cancelTask()
+        rc.goToPose(goal_pose)
+        while not rc.isTaskComplete():
+            rc.get_logger().info("Premikam se naprej da bom lahko parkiral")
+            time.sleep(2)
 
     # go to parking spot
     current_pos = rc.current_pose
@@ -610,14 +636,7 @@ def approach_green_ring(rc):
     rc.goToPose(goal_pose)
     while not rc.isTaskComplete():
         rc.get_logger().info("Parkiram ....")
-        # check if current pose is the same pose as the one before
-        # if current_pos == rc.current_pose:
-        #     rc.cancelTask()
-        #     rc.get_logger().info("Na istem mestu zato kenslam task")
-        #     break
-
-        # current_pos = rc.current_pose
-        time.sleep(2)
+        time.sleep(1)
 
     rc.green_ring_flag = True
 
@@ -666,11 +685,12 @@ def main(args=None):
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
                 rc.info("Waiting for the task to complete...")
-                #approach_green_ring(rc)
+                approach_green_ring(rc)
                 time.sleep(1)
         else:
             rc.cancelTask()
             break
+
 
 
     # for i in range(len(list_of_points)):

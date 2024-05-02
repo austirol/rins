@@ -69,6 +69,7 @@ class RingDetector(Node):
             [116, 69, 68],
             [147, 53, 49],
             [154, 143, 142],
+            [62, 37, 36],
             [96, 33, 30],
             [134, 134, 134],
             [159, 153, 152],
@@ -78,12 +79,13 @@ class RingDetector(Node):
             [63, 137, 62],
             [25, 124, 23],
             [128, 136, 128],
+            [158, 165, 157],
             [139, 150, 139],
             [117, 131, 116],
             [102, 132, 98],
             [126, 146, 125],
+            [80, 93, 79],
             [46, 92, 45],
-            [71, 72, 71],
             [84, 110, 84],
             [0, 0, 255],     # Blue
             [38, 62, 84],
@@ -93,11 +95,13 @@ class RingDetector(Node):
             [115, 121, 131],
             [123, 149, 173],
             [150, 152, 154],
+            [145, 161, 177],
             [78, 69, 90],
             [44, 59, 77],
             [255, 255, 0],   # Yellow
             [170, 170, 170],  # Gray
             [100, 100, 100],
+            [147, 145, 135],
             [44, 45, 44], # Black
             [79, 80, 80],
             [73, 73, 73],
@@ -113,11 +117,11 @@ class RingDetector(Node):
         ]
 
         # Corresponding color labels
-        self.color_labels = ["red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red",
-                             "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green",
-                             "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue",  "blue",
+        self.color_labels = ["red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red",
+                             "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green",
+                             "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue",  "blue", "blue",
                              "yellow",
-                             "gray", "gray",
+                             "gray", "gray", "gray",
                              "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black"]
 
         # Train the classifier
@@ -130,6 +134,9 @@ class RingDetector(Node):
             self.colors.pop()
             self.rings.pop()
             self.ring_published.pop()
+        
+        print("BRISANJE BARVVV")
+        print(self.colors)
 
     def when_to_detect_callback(self, data):
         self.ok_to_detect = True
@@ -361,10 +368,6 @@ class RingDetector(Node):
             point_x = d[0]
             point_y = d[1]
             point_z = d[2]
-
-            if any(abs(point_x - x) < 0.75 and abs(point_y - y) < 0.75 for x, y, c in self.rings):
-                self.ring_published[self.rings.index((x,y,c))] = True
-                continue
             
             # create marker
             marker = Marker()

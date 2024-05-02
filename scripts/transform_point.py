@@ -128,7 +128,7 @@ class TranformPoints(Node):
         point_in_robot_frame.header.frame_id = "/base_link"
         point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
 
-        point_in_robot_frame.point.x = msg.pose.position.x + 0.1
+        point_in_robot_frame.point.x = msg.pose.position.x + 0.05
         point_in_robot_frame.point.y = msg.pose.position.y
         point_in_robot_frame.point.z = msg.pose.position.z 
 
@@ -217,7 +217,7 @@ class TranformPoints(Node):
                 self.marker_id += 1
             else:
                 for i in self.ring_pos:
-                    if abs(i["x"]-point_in_map_frame.point.x) < 0.75 and abs(i["y"]-point_in_map_frame.point.y) < 0.75 and abs(i["z"]-point_in_map_frame.point.z) < 0.75:
+                    if abs(i["x"]-point_in_map_frame.point.x) < 0.6 and abs(i["y"]-point_in_map_frame.point.y) < 0.6 and abs(i["z"]-point_in_map_frame.point.z) < 0.6:
                         # log
                         self.get_logger().info(f"ISTI")
                         
