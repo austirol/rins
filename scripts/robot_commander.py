@@ -567,7 +567,15 @@ def approach_green_ring(rc):
     goal_x = float(point["x"]) 
     goal_y = float(point["y"]) 
 
-    goal_pose = generate_goal_message(rc, goal_x, goal_y)
+    current_pose_vector = np.array([current_pos.pose.position.x, current_pos.pose.position.y])
+    goal_pose_vector = np.array([goal_x, goal_y])
+    direction_vector = goal_pose_vector - current_pose_vector
+    normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+    new_goal_pose = goal_pose_vector - 0.2 * normalized_direction
+    goal_x_new = float(new_goal_pose[0])
+    goal_y_new = float(new_goal_pose[1])
+
+    goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new)
 
     rc.goToPose(goal_pose)
     while not rc.isTaskComplete():
@@ -598,31 +606,32 @@ def approach_green_ring(rc):
         rc.spin(3.14, 10)
 
 
-    # move a little bit back
-    current_pos = rc.current_pose
+    # # move a little bit back
+    # current_pos = rc.current_pose
 
-    goal_pose = generate_goal_message(rc, current_pos.pose.position.x - 0.2, current_pos.pose.position.y)
+    # goal_pose = generate_goal_message(rc, current_pos.pose.position.x - 0.2, current_pos.pose.position.y)
 
-    rc.goToPose(goal_pose)
-    stuck = False
-    while not rc.isTaskComplete():
-        rc.get_logger().info("Premikam se nazaj da bom lahko parkiral")
-        if (current_pos == rc.current_pose):
-            print("premaknil se bom naprej ker nazaj ne morem")
-            stuck = True
-            break
+    # rc.goToPose(goal_pose)
+    # stuck = False
+    # while not rc.isTaskComplete():
+    #     rc.get_logger().info("Premikam se nazaj da bom lahko parkiral")
+    #     if (current_pos == rc.current_pose):
+    #         print("premaknil se bom naprej ker nazaj ne morem")
+    #         stuck = True
+    #         break
            
-        current_pos = rc.current_pose
+    #     current_pos = rc.current_pose
 
-        time.sleep(3)
+    #     time.sleep(3)
 
-    if stuck:
-        goal_pose = generate_goal_message(rc, current_pos.pose.position.x + 0.4, current_pos.pose.position.y)
-        rc.cancelTask()
-        rc.goToPose(goal_pose)
-        while not rc.isTaskComplete():
-            rc.get_logger().info("Premikam se naprej da bom lahko parkiral")
-            time.sleep(2)
+    # if stuck:
+    #     print("PREMIKAAANJE")
+    #     goal_pose = generate_goal_message(rc, current_pos.pose.position.x + 0.8, current_pos.pose.position.y)
+    #     rc.cancelTask()
+    #     rc.goToPose(goal_pose)
+    #     while not rc.isTaskComplete():
+    #         rc.get_logger().info("Premikam se naprej da bom lahko parkiral")
+    #         time.sleep(2)
 
     # go to parking spot
     current_pos = rc.current_pose

@@ -311,10 +311,15 @@ class RingDetector(Node):
                 color = self.get_color(color_average[0], color_average[1], color_average[2])
                 if color is not None and color not in self.colors:
                     # put center of the ellipse in the list
-                    print(f'color average: {color_average}')
-                    print("CLOR", color)
                     x = int(e2[0][0])
                     y = int(e2[0][1])
+        
+                    if x >= 320 and y >= 240:
+                        continue
+                    
+                    print(f'color average: {color_average}')
+                    print("CLOR", color)
+                    
                     self.rings.append((x, y, color))
                     self.ring_published.append(False)
                     self.colors.append(color)
