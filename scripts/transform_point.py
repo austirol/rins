@@ -128,7 +128,7 @@ class TranformPoints(Node):
         point_in_robot_frame.header.frame_id = "/base_link"
         point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
 
-        point_in_robot_frame.point.x = msg.pose.position.x + 0.05
+        point_in_robot_frame.point.x = msg.pose.position.x + 0.1
         point_in_robot_frame.point.y = msg.pose.position.y
         point_in_robot_frame.point.z = msg.pose.position.z 
 

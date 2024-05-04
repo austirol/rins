@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include <pcl/ModelCoefficients.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/filters/extract_indices.h>
@@ -11,7 +12,10 @@
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl_conversions/pcl_conversions.h>
+
 #include <cmath>
+#include <vector>
+
 #include "geometry_msgs/msg/point_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
@@ -35,6 +39,100 @@ int marker_id = 0;
 float error_margin = 0.02;  // 2 cm margin for error
 float target_radius = 0.11;
 bool verbose = false;
+
+class ColorClassifier {
+    private:
+        std::vector<std::vector<int>> rgb_values = {
+            {255, 0, 0},    // Red
+            {204, 71, 65},
+            {130, 120, 120},
+            {116, 69, 68},
+            {147, 53, 49},
+            {154, 143, 142},
+            {62, 37, 36},
+            {96, 33, 30},
+            {134, 134, 134},
+            {159, 153, 152},
+            {137, 105, 105},
+            {190, 101, 100},
+            {0, 255, 0},    // Green
+            {63, 137, 62},
+            {25, 124, 23},
+            {128, 136, 128},
+            {158, 165, 157},
+            {139, 150, 139},
+            {117, 131, 116},
+            {102, 132, 98},
+            {126, 146, 125},
+            {80, 93, 79},
+            {46, 92, 45},
+            {84, 110, 84},
+            {0, 0, 255},    // Blue
+            {38, 62, 84},
+            {26, 42, 58},
+            {124, 129, 133},
+            {79, 119, 155},
+            {115, 121, 131},
+            {123, 149, 173},
+            {150, 152, 154},
+            {145, 161, 177},
+            {78, 69, 90},
+            {44, 59, 77},
+            {255, 255, 0},  // Yellow
+            {101, 87, 0},
+            {170, 170, 170},  // Gray
+            {100, 100, 100},
+            {120, 120, 120},
+            {79, 80, 80},
+            {77, 78, 78},
+            {159, 161, 160},
+            {147, 145, 135},
+            {0,0, 0} // Black
+        };
+
+        std::vector<std::string> color_labels = {"red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red",
+                                        "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green",
+                                        "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue",  "blue", "blue",
+                                        "yellow", "yellow",
+                                        "gray", "gray", "gray", "gray", "gray", "gray", "gray",
+                                        "black"};
+
+    public:
+        void trainClassifier() {
+            // Assuming you have your own implementation of KNeighborsClassifier
+            // Here you would instantiate and train your classifier using rgb_values and color_labels
+            // For demonstration purposes, let's print the labels and corresponding RGB values
+            std::cout << "Training Classifier..." << std::endl;
+            for (size_t i = 0; i < rgb_values.size(); ++i) {
+                std::cout << color_labels[i] << ": ";
+                for (int j = 0; j < 3; ++j) {
+                    std::cout << rgb_values[i][j] << " ";
+                }
+                std::cout << std::endl;
+            }
+        }
+
+        std::string predictColor(std::vector<int> rgb) {
+            // Assuming you have implemented a predict method in your classifier
+            // Here, let's just find the nearest neighbor based on Euclidean distance
+            double minDist = INT_MAX;
+            std::string predictedColor;
+            for (size_t i = 0; i < rgb_values.size(); ++i) {
+                double dist = 0;
+                for (int j = 0; j < 3; ++j) {
+                    dist += pow(rgb[j] - rgb_values[i][j], 2);
+                }
+                dist = sqrt(dist);
+                if (dist < minDist) {
+                    minDist = dist;
+                    predictedColor = color_labels[i];
+                }
+            }
+            return predictedColor;
+        }
+};
+
+ColorClassifier colorClassifier;
 
 // set up PCL RANSAC objects
 
@@ -171,9 +269,9 @@ void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
 	}
 
 	// Access the RGB components at the centroid index
-	float cylinder_r = static_cast<float>(cloud_cylinder->points[centroid_index].r) / 255.0;
-	float cylinder_g = static_cast<float>(cloud_cylinder->points[centroid_index].g) / 255.0;
-	float cylinder_b = static_cast<float>(cloud_cylinder->points[centroid_index].b) / 255.0;
+	int cylinder_r = cloud_cylinder->points[centroid_index].r;
+	int cylinder_g = cloud_cylinder->points[centroid_index].g;
+	int cylinder_b = cloud_cylinder->points[centroid_index].b;
 
 	// Print out the centroid value and RGB components
 	if (centroid_index != -1) {
@@ -185,9 +283,39 @@ void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
 			std::cout << "Centroid not found!" << std::endl;
 	}
 
-	if (!((std::abs(cylinder_r - 0.4) <= 0.04 && std::abs(cylinder_g - 0.34) <= 0.04 && cylinder_b <= 0.04) || (std::abs(cylinder_r - 0.15) <= 0.04 && std::abs(cylinder_g - 0.24) <= 0.04 && std::abs(cylinder_b - 0.33) <= 0.04) || (std::abs(cylinder_r - 0.38) <= 0.1 && std::abs(cylinder_g - 0.12) <= 0.04 && std::abs(cylinder_b - 0.12) <= 0.04) ||(std::abs(cylinder_r - 0.11) <= 0.04 && std::abs(cylinder_g - 0.55) <= 0.2 && std::abs(cylinder_b - 0.11) <= 0.04) || (cylinder_r <= 0.04 && cylinder_g <= 0.04 && cylinder_b <= 0.04))) {
-		return;
-	}
+    // predict color
+    std::vector<int> rgb = {cylinder_r, cylinder_g, cylinder_b};
+    std::string predictedColor = colorClassifier.predictColor(rgb);
+    std::cout << "Predicted color: " << predictedColor << std::endl;
+
+    if (predictedColor == "gray") {
+        std::cout << "TOLE NI CILINDER" << std::endl;
+        return;
+    }
+
+    //make marker color based on predicted color
+    if (predictedColor == "red") {
+        cylinder_r = 255;
+        cylinder_g = 0;
+        cylinder_b = 0;
+    } else if (predictedColor == "green") {
+        cylinder_r = 0;
+        cylinder_g = 255;
+        cylinder_b = 0;
+    } else if (predictedColor == "blue") {
+        cylinder_r = 0;
+        cylinder_g = 0;
+        cylinder_b = 255;
+    } else if (predictedColor == "yellow") {
+        cylinder_r = 255;
+        cylinder_g = 255;
+        cylinder_b = 0;
+    } else if (predictedColor == "black") {
+        cylinder_r = 0;
+        cylinder_g = 0;
+        cylinder_b = 0;
+    }
+
 
     // calculate marker
     // pcl::compute3DCentroid(*cloud_cylinder, centroid);
@@ -245,13 +373,13 @@ void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     marker.scale.y = 0.1;
     marker.scale.z = 0.1;
 
-    marker.color.r = cylinder_r;
-    marker.color.g = cylinder_g;
-    marker.color.b = cylinder_b;
+    marker.color.r = cylinder_r / 255.0f;
+    marker.color.g = cylinder_g / 255.0f;
+    marker.color.b = cylinder_b / 255.0f;
     marker.color.a = 1.0f;
 
     // marker.lifetime = rclcpp::Duration(1,0);
-    marker.lifetime = rclcpp::Duration(10, 0);
+    //marker.lifetime = rclcpp::Duration(10, 0);
 
     marker_pub->publish(marker);
 
@@ -271,6 +399,7 @@ void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     pcl_conversions::fromPCL(*outcloud_cylinder, cylinder_out_msg);
     cylinder_pub->publish(cylinder_out_msg);
 }
+
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
@@ -292,6 +421,9 @@ int main(int argc, char** argv) {
     planes_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("planes", 1);
     cylinder_pub = node->create_publisher<sensor_msgs::msg::PointCloud2>("cylinder", 1);
     marker_pub = node->create_publisher<visualization_msgs::msg::Marker>("detected_cylinder", 1);
+
+    // color classifier
+    colorClassifier.trainClassifier();
 
     rclcpp::spin(node);
     rclcpp::shutdown();
