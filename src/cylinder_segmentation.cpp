@@ -99,9 +99,6 @@ class ColorClassifier {
 
     public:
         void trainClassifier() {
-            // Assuming you have your own implementation of KNeighborsClassifier
-            // Here you would instantiate and train your classifier using rgb_values and color_labels
-            // For demonstration purposes, let's print the labels and corresponding RGB values
             std::cout << "Training Classifier..." << std::endl;
             for (size_t i = 0; i < rgb_values.size(); ++i) {
                 std::cout << color_labels[i] << ": ";
@@ -113,8 +110,6 @@ class ColorClassifier {
         }
 
         std::string predictColor(std::vector<int> rgb) {
-            // Assuming you have implemented a predict method in your classifier
-            // Here, let's just find the nearest neighbor based on Euclidean distance
             double minDist = INT_MAX;
             std::string predictedColor;
             for (size_t i = 0; i < rgb_values.size(); ++i) {
