@@ -42,6 +42,8 @@ float target_radius = 0.11;
 bool verbose = false;
 bool detect_cylinder = false;
 
+std::vector<std::string> color_labels;
+
 class ColorClassifier {
     private:
         std::vector<std::vector<int>> rgb_values = {
@@ -299,6 +301,19 @@ void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
         return;
     }
 
+    // print color labels
+    std::cout << "Color labels: ";
+    for (size_t i = 0; i < color_labels.size(); ++i) {
+        std::cout << color_labels[i] << " ";
+    }
+    std::cout << std::endl;
+
+    for (const auto& label : color_labels) {
+        if (label == predictedColor) {
+            return;
+        }
+    }
+
     //make marker color based on predicted color
     if (predictedColor == "red") {
         cylinder_r = 255;
@@ -404,6 +419,8 @@ void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     pcl::toPCLPointCloud2(*cloud_cylinder, *outcloud_cylinder);
     pcl_conversions::fromPCL(*outcloud_cylinder, cylinder_out_msg);
     cylinder_pub->publish(cylinder_out_msg);
+
+    color_labels.push_back(predictedColor);
 }
 
 
