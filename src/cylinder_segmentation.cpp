@@ -19,6 +19,7 @@
 #include "geometry_msgs/msg/point_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "tf2/tf2/convert.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.h"
@@ -39,6 +40,7 @@ int marker_id = 0;
 float error_margin = 0.02;  // 2 cm margin for error
 float target_radius = 0.11;
 bool verbose = false;
+bool detect_cylinder = false;
 
 class ColorClassifier {
     private:
@@ -129,9 +131,18 @@ class ColorClassifier {
 
 ColorClassifier colorClassifier;
 
+void when_to_detect_cylinder_cb(const std_msgs::msg::Bool::SharedPtr msg) {
+    detect_cylinder = true;
+    std::cout << "READY TO DETECT" << std::endl;
+}
+
 // set up PCL RANSAC objects
 
 void cloud_cb(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
+    if (!detect_cylinder) {
+        return;
+    }
+    
     // save timestamp from message
     rclcpp::Time now = (*msg).header.stamp;
 
@@ -408,6 +419,11 @@ int main(int argc, char** argv) {
     std::string param_topic_pointcloud_in = node->get_parameter("topic_pointcloud_in").as_string();
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription = node->create_subscription<sensor_msgs::msg::PointCloud2>(param_topic_pointcloud_in, 10, &cloud_cb);
 
+    // create subscriber for when to detect
+    node->declare_parameter<bool>("detect_cylinder", false);
+    detect_cylinder = node->get_parameter("detect_cylinder").as_bool();
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscription2 = node->create_subscription<std_msgs::msg::Bool>("/when_to_detected_cylinder", 10, &when_to_detect_cylinder_cb);
+    
     // setup tf listener
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);

@@ -93,6 +93,7 @@ class RobotCommander(Node):
         # publisher za ringe kdaj začne detectad
         self.when_to_detect_rings = self.create_publisher(Bool, '/when_to_detect_rings', 1)
         self.when_to_park_pub = self.create_publisher(Bool, '/when_to_park', 1)
+        self.when_to_detect_cylinders = self.create_publisher(Bool, '/when_to_detected_cylinder', 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
@@ -683,6 +684,12 @@ def main(args=None):
     msg = Bool()
     msg.data = True
     rc.when_to_detect_rings.publish(msg)
+
+    # publish to /when_to_detect_cylinders
+    print("Publishing to /when_to_detected_cylinder")
+    msg = Bool()
+    msg.data = True
+    rc.when_to_detect_cylinders.publish(msg)
 
     for i in range(len(list_of_points)):
         if rc.green_ring_flag:
