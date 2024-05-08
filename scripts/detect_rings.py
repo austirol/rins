@@ -400,7 +400,7 @@ class RingDetector(Node):
             # Set the pose of the marker
             marker.pose.position.x = float(d[0])
             marker.pose.position.y = float(d[1])
-            marker.pose.position.z = float(d[2])
+            marker.pose.position.z = -float(d[2])
 
             print(f"Ring at {x}, {y} is at {d[0]}, {d[1]}, {d[2]}")
             self.ring_published[self.rings.index((x,y,c))] = True

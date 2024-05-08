@@ -40,7 +40,10 @@ class ArmMoverAction(Node):
 
         # Predefined positions for the robot arm
         self.joint_names = ['arm_base_joint', 'arm_shoulder_joint', 'arm_elbow_joint', 'arm_wrist_joint']
-        self.arm_poses = {'look_for_parking':[0.,0.2,1.5,1.4],
+        self.arm_poses = {'look_for_parking': [0.,0.2,1.5,1.4],
+                        #   [0.,0.2,1.5,1.4], OG
+                        #   [0.,-0.2,1.9,1.4], New robust
+                        #   [0.,0.,2.57,0.52], New
                           'look_for_qr':[0.,0.6,0.5,2.0],
                           'garage':[0.,-0.45,2.8,-0.8],
                           'up': [0.,0.,0.,1.5],
