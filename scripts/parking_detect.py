@@ -135,7 +135,7 @@ class ParkingDetector(Node):
             marker.color.a = 1.0
 
             # Set the pose of the marker
-            marker.pose.position.x = float(d[0]) - 0.4
+            marker.pose.position.x = float(d[0]) - 0.37
             marker.pose.position.y = float(d[1]) - 0.25
             marker.pose.position.z = float(d[2])
 

@@ -572,7 +572,7 @@ def approach_green_ring(rc):
     goal_pose_vector = np.array([goal_x, goal_y])
     direction_vector = goal_pose_vector - current_pose_vector
     normalized_direction = direction_vector / np.linalg.norm(direction_vector)
-    new_goal_pose = goal_pose_vector - 0.2 * normalized_direction
+    new_goal_pose = goal_pose_vector - 0.1 * normalized_direction
     goal_x_new = float(new_goal_pose[0])
     goal_y_new = float(new_goal_pose[1])
 
