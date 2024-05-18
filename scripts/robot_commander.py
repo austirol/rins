@@ -27,6 +27,7 @@ from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import Spin, NavigateToPose
 from turtle_tf2_py.turtle_tf2_broadcaster import quaternion_from_euler
+from geometry_msgs.msg import Twist
 
 from irobot_create_msgs.action import Dock, Undock
 from irobot_create_msgs.msg import DockStatus
@@ -39,7 +40,7 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 
-from std_msgs.msg import String, Bool
+from std_msgs.msg import String, Bool, Float32MultiArray
 
 
 
@@ -94,13 +95,19 @@ class RobotCommander(Node):
         self.when_to_detect_rings = self.create_publisher(Bool, '/when_to_detect_rings', 1)
         self.when_to_park_pub = self.create_publisher(Bool, '/when_to_park', 1)
         self.when_to_detect_cylinders = self.create_publisher(Bool, '/when_to_detected_cylinder', 1)
+
+        ### PARKING SHIT
+        # self.do_another_hough = self.create_publisher(Bool, '/do_another_hough', 1)
+        # # twist premiki
+        # self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
+        # # da se neha vrtet k najde prvi parking
+        # self.stop_spinning_sub = self.create_subscription(Bool, '/found_circle', self.stop_spinning_callback, 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
         self.green_ring_sub = self.create_subscription(Marker, "/green_ring", self.green_ring_handler, 1)
-        self.parking_spot_sub = self.create_subscription(Marker, "/marker_pos_parking", self.parking_pos_handler, 1)
-
-
+        
+        # self.offset_sub = self.create_subscription(Float32MultiArray, 'circle_offset', self.circle_offset_callback, 10)
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.spin_client = ActionClient(self, Spin, 'spin')
@@ -116,22 +123,74 @@ class RobotCommander(Node):
         self.green_ring_flag = False
 
         # parking
-        self.parking_spot = []
+        self.find_first_parking = False
+        self.target_tolerance = 15
+        self.move_tolerance = 100
+        self.angular_speed = 0.2 
+        self.linear_speed = 0.1
+        self.rotated_towwards_center = False
+        self.parked = False
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
+    ### TWSIST PARKING
+    # def circle_offset_callback(self, msg):
+    #     offset_x = msg.data[0]
+    #     offset_y = msg.data[1]
+    
+    #     print(f'OFFSET X: {offset_x}')
+    #     if abs(offset_x) > self.target_tolerance:
+    #         self.rotated_towwards_center = False
+    #         self.rotate_robot(offset_x)
+    #         time.sleep(1)
+    #     else:
+    #         self.get_logger().info("Circle is centered.")
+    #         self.rotated_towwards_center = True
 
-    def parking_pos_handler(self, msg):
-        x = msg.pose.position.x
-        y = msg.pose.position.y
-        z = msg.pose.position.z
+        
+    #     if self.rotated_towwards_center:
+    #         self.get_logger().info(f'Offset y: {offset_y}')
+    #         if abs(offset_y) < self.move_tolerance:
+                
+    #             self.move_robot(offset_y)
+    #             time.sleep(1)
+    #         else:
+    #             self.get_logger().info("PArked!")
+    #             self.parked = True
 
-        point = {"x":x, "y":y, "z":z}
+    ### TWSIST PARKING
+    # def move_robot(self, offset_y):
+    #     twist = Twist()
+    #     self.get_logger().info(f"I am not in the center. Moving...")
+    #     if offset_y > 0:   
+    #         twist.linear.x = -self.linear_speed
+    #     else:
+    #         twist.linear.x = self.linear_speed
 
-        self.parking_spot.append(point)
-        print("Parking spot detected!")
+    #     self.cmd_vel_pub.publish(twist)
+    #     self.do_another_hough.publish(Bool(data=True))
 
-        return
+    # ### TWSIST PARKING
+    # def rotate_robot(self, offset_x):
+    #     twist = Twist()
+    #     self.get_logger().info(f"Circle is not centered. Rotating...")
+    #     if offset_x > 0:   
+    #         twist.angular.z = -self.angular_speed
+    #     else:
+    #         twist.angular.z = self.angular_speed
+
+    #     self.cmd_vel_pub.publish(twist)
+    #     self.do_another_hough.publish(Bool(data=True))
+
+    ### TWSIST PARKING
+    # def stop_spinning_callback(self, msg):
+    #     self.find_first_parking = True
+    #     self.get_logger().info("First parking found!")
+    #     # stop spinning
+    #     twist = Twist()
+    #     twist.angular.z = 0.0
+    #     self.cmd_vel_pub.publish(twist)
+
 
     def face_handler(self, msg):
         x = msg.pose.position.x
@@ -572,7 +631,7 @@ def approach_green_ring(rc):
     goal_pose_vector = np.array([goal_x, goal_y])
     direction_vector = goal_pose_vector - current_pose_vector
     normalized_direction = direction_vector / np.linalg.norm(direction_vector)
-    new_goal_pose = goal_pose_vector - 0.1 * normalized_direction
+    new_goal_pose = goal_pose_vector - 0.05 * normalized_direction
     goal_x_new = float(new_goal_pose[0])
     goal_y_new = float(new_goal_pose[1])
 
@@ -581,10 +640,6 @@ def approach_green_ring(rc):
     rc.goToPose(goal_pose)
     while not rc.isTaskComplete():
         rc.get_logger().info("Premikam se do zelenega obroča")
-        # if (current_pos == rc.current_pose):
-        #     rc.get_logger().info("Na istem mestu že tri sekunde")
-        #     rc.cancelTask()
-        #     break
 
         current_pos = rc.current_pose
         time.sleep(3)
@@ -595,58 +650,13 @@ def approach_green_ring(rc):
     msg.data = "look_for_parking"
     rc.top_camera_pub.publish(msg)
 
-    time.sleep(6)
+    time.sleep(9)
 
     # publish to /when_to_park
     msg = Bool()
     msg.data = True
     rc.when_to_park_pub.publish(msg)
 
-    # make do 360 spin slowly untill parking spot is detected
-    while len(rc.parking_spot) == 0:
-        rc.spin(3.14, 10)
-
-
-    # # move a little bit back
-    # current_pos = rc.current_pose
-
-    # goal_pose = generate_goal_message(rc, current_pos.pose.position.x - 0.2, current_pos.pose.position.y)
-
-    # rc.goToPose(goal_pose)
-    # stuck = False
-    # while not rc.isTaskComplete():
-    #     rc.get_logger().info("Premikam se nazaj da bom lahko parkiral")
-    #     if (current_pos == rc.current_pose):
-    #         print("premaknil se bom naprej ker nazaj ne morem")
-    #         stuck = True
-    #         break
-           
-    #     current_pos = rc.current_pose
-
-    #     time.sleep(3)
-
-    # if stuck:
-    #     print("PREMIKAAANJE")
-    #     goal_pose = generate_goal_message(rc, current_pos.pose.position.x + 0.8, current_pos.pose.position.y)
-    #     rc.cancelTask()
-    #     rc.goToPose(goal_pose)
-    #     while not rc.isTaskComplete():
-    #         rc.get_logger().info("Premikam se naprej da bom lahko parkiral")
-    #         time.sleep(2)
-
-    # go to parking spot
-    current_pos = rc.current_pose
-    point = rc.parking_spot[0]
-
-    goal_x = float(point["x"])
-    goal_y = float(point["y"])
-
-    goal_pose = generate_goal_message(rc, goal_x, goal_y)
-
-    rc.goToPose(goal_pose)
-    while not rc.isTaskComplete():
-        rc.get_logger().info("Parkiram ....")
-        time.sleep(1)
 
     rc.green_ring_flag = True
 
@@ -708,7 +718,6 @@ def main(args=None):
             break
 
 
-
     # for i in range(len(list_of_points)):
     #     if not rc.is_docked:
     #         goal_pose.pose.position.x = list_of_points[i][0]
@@ -726,8 +735,13 @@ def main(args=None):
     #     else:
     #         rc.cancelTask()
     #         break
+
+
+        
     
-    rc.destroyNode()
+    #rc.destroyNode()
+    rclpy.spin(rc)
+    
 
     # And a simple example
 if __name__=="__main__":

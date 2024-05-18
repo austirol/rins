@@ -42,14 +42,12 @@ class TranformPoints(Node):
         # For publishing the markers
         self.marker_pub = self.create_publisher(Marker, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
         self.marker_pub2 = self.create_publisher(Marker, "/marker_pos_rings", QoSReliabilityPolicy.BEST_EFFORT)
-        self.marker_pub3 = self.create_publisher(Marker, "/marker_pos_parking", QoSReliabilityPolicy.BEST_EFFORT)
 
         # for green ring to park under
         self.green_ring_pub = self.create_publisher(Marker, "/green_ring", QoSReliabilityPolicy.BEST_EFFORT)
         self.is_it_the_same_ring = self.create_publisher(Bool, "/is_it_the_same_ring", 1)
         # For subscribing to the markers
         self.marker_sub = self.create_subscription(Marker, "/people_marker", self.timer_callback, 1)
-        self.marker_sub_parking = self.create_subscription(Marker, "/parking_marker", self.timer_callback2, 1)
         self.marker_sub_ring = self.create_subscription(Marker, "/ring_marker", self.publish_ring_marker, 1)
 
         # Create a timer, to do the main work.
@@ -117,62 +115,6 @@ class TranformPoints(Node):
             # # Increase the marker_id, so we dont overwrite the same marker.
             
 
-        except TransformException as te:
-            self.get_logger().info(f"Cound not get the transform: {te}")
-
-    def timer_callback2(self, msg):
-        # Create a PointStamped in the /base_link frame of the robot
-        # The point is located 0.5m in from of the robot
-        # "Stamped" means that the message type contains a Header
-        point_in_robot_frame = PointStamped()
-        point_in_robot_frame.header.frame_id = "/base_link"
-        point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
-
-        point_in_robot_frame.point.x = msg.pose.position.x 
-        point_in_robot_frame.point.y = msg.pose.position.y
-        point_in_robot_frame.point.z = msg.pose.position.z 
-
-        # Now we look up the transform between the base_link and the map frames
-        # and then we apply it to our PointStamped
-        time_now = rclpy.time.Time()
-        timeout = Duration(seconds=0.1)
-        try:
-            # An example of how you can get a transform from /base_link frame to the /map frame
-            # as it is at time_now, wait for timeout for it to become available
-            trans = self.tf_buffer.lookup_transform("map", "base_link", time_now, timeout)
-
-            # Now we apply the transform to transform the point_in_robot_frame to the map frame
-            # The header in the result will be copied from the Header of the transform
-            point_in_map_frame = tfg.do_transform_point(point_in_robot_frame, trans)
-            
-            # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
-            marker_in_map_frame = self.create_marker_parking(point_in_map_frame, self.marker_id)
-
-            if (len(self.parking_pos) == 0):
-                self.marker_pub3.publish(marker_in_map_frame)
-                self.parking_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
-                # log
-                self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
-                self.marker_id += 1
-            else:
-                for i in self.parking_pos:
-                    if abs(i["x"]-point_in_map_frame.point.x) < 0.8 and abs(i["y"]-point_in_map_frame.point.y) < 0.8 and abs(i["z"]-point_in_map_frame.point.z) < 0.8:
-                        # log
-                        self.get_logger().info(f"ISTI")
-                        break
-                else:
-                    self.marker_pub3.publish(marker_in_map_frame)
-                    self.parking_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
-                    # log
-                    self.get_logger().info(f"Parking spot: {point_in_map_frame.point}")
-                    self.marker_id += 1
-
-            # # Publish the marker if marker_id is set
-            #self.marker_pub.publish(marker_in_map_frame)
-            #self.get_logger().info(f"The marker has been published to /marker_pos. You are able to visualize it in Rviz")
-
-            # # Increase the marker_id, so we dont overwrite the same marker.
-            
         except TransformException as te:
             self.get_logger().info(f"Cound not get the transform: {te}")
 
@@ -300,35 +242,6 @@ class TranformPoints(Node):
         # Set the pose of the marker
         marker.pose.position.x = point_stamped.point.x
         marker.pose.position.y = point_stamped.point.y 
-        marker.pose.position.z = point_stamped.point.z
-
-        return marker
-    
-    def create_marker_parking(self, point_stamped, marker_id):
-        """You can the description of the Marker message here: https://docs.ros2.org/galactic/api/visualization_msgs/msg/Marker.html"""
-        marker = Marker()
-
-        marker.header = point_stamped.header
-
-        marker.type = marker.SPHERE
-        marker.action = marker.ADD
-        marker.id = marker_id
-
-        # Set the scale of the marker
-        scale = 0.15
-        marker.scale.x = scale
-        marker.scale.y = scale
-        marker.scale.z = scale
-
-        # Set the color
-        marker.color.r = 0.0
-        marker.color.g = 0.0
-        marker.color.b = 1.0
-        marker.color.a = 1.0
-
-        # Set the pose of the marker
-        marker.pose.position.x = point_stamped.point.x
-        marker.pose.position.y = point_stamped.point.y
         marker.pose.position.z = point_stamped.point.z
 
         return marker
