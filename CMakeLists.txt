@@ -84,6 +84,7 @@ install(PROGRAMS
   scripts/robot_commander.py
   scripts/map_goals.py
   scripts/transform_point.py
+  scripts/qr_reader.py
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

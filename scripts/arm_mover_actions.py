@@ -44,7 +44,7 @@ class ArmMoverAction(Node):
                         #   [0.,0.2,1.5,1.4], OG
                         #   [0.,-0.2,1.9,1.4], New robust
                         #   [0.,0.,2.57,0.52], New
-                          'look_for_qr':[0.,0.6,0.5,2.0],
+                          'look_for_qr':[0.,0.,0.5,2.2],
                           'garage':[0.,-0.45,2.8,-0.8],
                           'up': [0.,0.,0.,1.5],
                           'manual':None}

@@ -14,23 +14,29 @@
 # limitations under the License.
 
 
+import asyncio
 from visualization_msgs.msg import Marker
 from enum import Enum
 import time
 import pyttsx3
 import math
 import numpy as np
+import cv2
 
 from action_msgs.msg import GoalStatus
-from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped, PointStamped
-from lifecycle_msgs.srv import GetState
+from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped, PointStamped, Twist
 from nav2_msgs.action import Spin, NavigateToPose
+from std_msgs.msg import String, Bool, Float32MultiArray
+from sensor_msgs.msg import Image
+from builtin_interfaces.msg import Duration
+from lifecycle_msgs.srv import GetState
+
 from turtle_tf2_py.turtle_tf2_broadcaster import quaternion_from_euler
-from geometry_msgs.msg import Twist
 
 from irobot_create_msgs.action import Dock, Undock
 from irobot_create_msgs.msg import DockStatus
+
+from cv_bridge import CvBridge, CvBridgeError
 
 import rclpy
 from rclpy.action import ActionClient
@@ -39,10 +45,6 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
-
-from std_msgs.msg import String, Bool, Float32MultiArray
-
-
 
 class TaskResult(Enum):
     UNKNOWN = 0
@@ -73,6 +75,8 @@ class RobotCommander(Node):
         self.is_docked = None
         self.initial_pose = None
 
+        self.bridge = CvBridge()
+
         # ROS2 subscribers
         self.create_subscription(DockStatus,
                                  'dock_status',
@@ -95,19 +99,21 @@ class RobotCommander(Node):
         self.when_to_detect_rings = self.create_publisher(Bool, '/when_to_detect_rings', 1)
         self.when_to_park_pub = self.create_publisher(Bool, '/when_to_park', 1)
         self.when_to_detect_cylinders = self.create_publisher(Bool, '/when_to_detected_cylinder', 1)
-
-        ### PARKING SHIT
-        # self.do_another_hough = self.create_publisher(Bool, '/do_another_hough', 1)
-        # # twist premiki
-        # self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
-        # # da se neha vrtet k najde prvi parking
-        # self.stop_spinning_sub = self.create_subscription(Bool, '/found_circle', self.stop_spinning_callback, 1)
+        self.when_to_detect_qr = self.create_publisher(Bool, '/when_to_detect_qr', 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
         self.green_ring_sub = self.create_subscription(Marker, "/green_ring", self.green_ring_handler, 1)
+        self.cylinder_sub = self.create_subscription(Marker, "/detected_cylinder", self.cylinder_handler, 1)
+
+        # image subscriber
+        #self.image_sub = self.create_subscription(Image, "/top_camera/rgb/preview/image_raw", self.qr_code_hanlder, 1)
+
+        self.ended_qr_sub = self.create_subscription(Bool, '/qr_detection_ended', self.qr_code_hanlder, 1)
+
+
+        self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
         
-        # self.offset_sub = self.create_subscription(Float32MultiArray, 'circle_offset', self.circle_offset_callback, 10)
         # ROS2 Action clients
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.spin_client = ActionClient(self, Spin, 'spin')
@@ -122,75 +128,20 @@ class RobotCommander(Node):
         self.green_ring_pos = []
         self.green_ring_flag = False
 
-        # parking
-        self.find_first_parking = False
-        self.target_tolerance = 15
-        self.move_tolerance = 100
-        self.angular_speed = 0.2 
-        self.linear_speed = 0.1
-        self.rotated_towwards_center = False
-        self.parked = False
+        # cylinder
+        self.cylinder_pos = []
+        self.cylinder_flag = []
+        self.continue_walking = False
+        # self.detectQR = False
+        # self.QR_detector = cv2.QRCodeDetector()
+        # cv2.namedWindow("QR CODE", cv2.WINDOW_NORMAL)
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
-    ### TWSIST PARKING
-    # def circle_offset_callback(self, msg):
-    #     offset_x = msg.data[0]
-    #     offset_y = msg.data[1]
-    
-    #     print(f'OFFSET X: {offset_x}')
-    #     if abs(offset_x) > self.target_tolerance:
-    #         self.rotated_towwards_center = False
-    #         self.rotate_robot(offset_x)
-    #         time.sleep(1)
-    #     else:
-    #         self.get_logger().info("Circle is centered.")
-    #         self.rotated_towwards_center = True
-
-        
-    #     if self.rotated_towwards_center:
-    #         self.get_logger().info(f'Offset y: {offset_y}')
-    #         if abs(offset_y) < self.move_tolerance:
-                
-    #             self.move_robot(offset_y)
-    #             time.sleep(1)
-    #         else:
-    #             self.get_logger().info("PArked!")
-    #             self.parked = True
-
-    ### TWSIST PARKING
-    # def move_robot(self, offset_y):
-    #     twist = Twist()
-    #     self.get_logger().info(f"I am not in the center. Moving...")
-    #     if offset_y > 0:   
-    #         twist.linear.x = -self.linear_speed
-    #     else:
-    #         twist.linear.x = self.linear_speed
-
-    #     self.cmd_vel_pub.publish(twist)
-    #     self.do_another_hough.publish(Bool(data=True))
-
-    # ### TWSIST PARKING
-    # def rotate_robot(self, offset_x):
-    #     twist = Twist()
-    #     self.get_logger().info(f"Circle is not centered. Rotating...")
-    #     if offset_x > 0:   
-    #         twist.angular.z = -self.angular_speed
-    #     else:
-    #         twist.angular.z = self.angular_speed
-
-    #     self.cmd_vel_pub.publish(twist)
-    #     self.do_another_hough.publish(Bool(data=True))
-
-    ### TWSIST PARKING
-    # def stop_spinning_callback(self, msg):
-    #     self.find_first_parking = True
-    #     self.get_logger().info("First parking found!")
-    #     # stop spinning
-    #     twist = Twist()
-    #     twist.angular.z = 0.0
-    #     self.cmd_vel_pub.publish(twist)
-
+    def qr_code_hanlder(self, msg):
+        print("RECEIVED MESSAGE")
+        self.continue_walking = True
+        return
 
     def face_handler(self, msg):
         x = msg.pose.position.x
@@ -215,6 +166,47 @@ class RobotCommander(Node):
 
         self.green_ring_pos.append(point)
         return
+    
+    def cylinder_handler(self, msg):
+        print("Cylinder detected!")
+        x = msg.pose.position.x
+        y = msg.pose.position.y
+        z = msg.pose.position.z
+
+        point = {"x":x, "y":y, "z":z}
+
+        self.cylinder_pos.append(point)
+        self.cylinder_flag.append(False)
+        return
+    
+    # def qr_code_hanlder(self, msg):
+    #     # if not self.detectQR:
+    #     #     return
+        
+    #     print("ON IT")
+    #     try :
+    #         cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+    #     except CvBridgeError as e:
+    #         print(e)
+
+
+    #     data, bbox, _ = self.QR_detector.detectAndDecode(cv_image)
+    #     if bbox is None or data == "":
+    #         print("QR Code not detected")
+    #         twist = Twist()
+    #         twist.angular.z = 0.5
+    #         self.cmd_vel_pub.publish(twist)
+    #         time.sleep(0.1)
+    #     else: 
+    #         print("QR Code detected")
+    #         cv2.imshow("QR CODE", cv_image)
+    #         cv2.waitKey(1)
+
+    #         if data.startswith("https"):
+    #             self.image_url = data
+
+
+    #     return
 
     def destroyNode(self):
         self.nav_to_pose_client.destroy()
@@ -660,6 +652,56 @@ def approach_green_ring(rc):
 
     rc.green_ring_flag = True
 
+def approach_cylindr(rc):
+    for j, flag in enumerate(rc.cylinder_flag):
+        if not flag and not rc.is_docked:
+            #shrani trenutno pozicijo
+            pos_save = rc.current_pose
+            
+            #skenslaj goal
+            rc.cancelTask()
+            time.sleep(1)
+            
+            # gremo do cilindra
+            current_x = float(pos_save.pose.position.x)
+            current_y = float(pos_save.pose.position.y)
+            goal_x = float(rc.cylinder_pos[j]["x"])
+            goal_y = float(rc.cylinder_pos[j]["y"])
+
+            current_pose_vector = np.array([current_x, current_y])
+            goal_pose_vector = np.array([goal_x, goal_y])
+            direction_vector = goal_pose_vector - current_pose_vector
+            normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+            new_goal_pose = goal_pose_vector - 0.2 * normalized_direction
+            goal_x_new = float(new_goal_pose[0])
+            goal_y_new = float(new_goal_pose[1])
+
+            razlika_y = goal_y - goal_y_new
+            razlika_x = goal_x - goal_x_new
+            kot = math.atan2(razlika_y, razlika_x)
+            goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new, kot)
+
+            rc.goToPose(goal_pose)
+            while not rc.isTaskComplete():
+                rc.get_logger().info("Grem do cilindra")
+                time.sleep(1)
+
+            
+            # sprememba kamere
+            msg = String()
+            msg.data = "look_for_qr"
+            rc.top_camera_pub.publish(msg)
+
+            # publish to /when_to_detect_qr
+            msg = Bool()
+            msg.data = True
+            rc.when_to_detect_qr.publish(msg)
+            
+            while not rc.continue_walking:
+                # TALE UKAZ TI NE USTAV CELOTNEGA PROGRAMA
+                rclpy.spin_once(rc, timeout_sec=0.5)
+            
+            rc.cylinder_flag[j] = True
 
 def main(args=None):
     
@@ -701,6 +743,23 @@ def main(args=None):
     msg.data = True
     rc.when_to_detect_cylinders.publish(msg)
 
+    # for i in range(len(list_of_points)):
+    #     if rc.green_ring_flag:
+    #         break
+    #     if not rc.is_docked:
+    #         goal_pose.pose.position.x = list_of_points[i][0]
+    #         goal_pose.pose.position.y = list_of_points[i][1]
+    #         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
+    #         rc.goToPose(goal_pose)
+    #         while not rc.isTaskComplete():
+    #             rc.info("Waiting for the task to complete...")
+    #             approach_green_ring(rc)
+    #             time.sleep(1)
+    #     else:
+    #         rc.cancelTask()
+    #         break
+
+    ## ZGOLJ ZA POTREBE TESTIRANJA DELOVANJA - TO BO POL DRGAč
     for i in range(len(list_of_points)):
         if rc.green_ring_flag:
             break
@@ -711,11 +770,12 @@ def main(args=None):
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
                 rc.info("Waiting for the task to complete...")
-                approach_green_ring(rc)
+                approach_cylindr(rc)
                 time.sleep(1)
         else:
             rc.cancelTask()
             break
+
 
 
     # for i in range(len(list_of_points)):
@@ -740,7 +800,7 @@ def main(args=None):
         
     
     #rc.destroyNode()
-    rclpy.spin(rc)
+    #rclpy.spin(rc)
     
 
     # And a simple example
