@@ -91,6 +91,9 @@ class ColorClassifier {
             {77, 78, 78},
             {159, 161, 160},
             {147, 145, 135},
+            {58, 28, 22},
+            {12, 6, 21},
+            {97, 97, 97},
             {0,0, 0} // Black
         };
 
@@ -98,7 +101,7 @@ class ColorClassifier {
                                         "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green",
                                         "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue",  "blue", "blue",
                                         "yellow", "yellow",
-                                        "gray", "gray", "gray", "gray", "gray", "gray", "gray",
+                                        "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray", "gray",
                                         "black"};
 
     public:
