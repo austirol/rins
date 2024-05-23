@@ -116,7 +116,7 @@ class ParkingDetector(Node):
             # create marker
             marker = Marker()
 
-            marker.header.frame_id = "/base_link"
+            marker.header.frame_id = "/turtlebot4/top_camera_rgb_camera_frame/rgbd_camera,"
             marker.header.stamp = data.header.stamp
 
             marker.type = 2
@@ -135,8 +135,8 @@ class ParkingDetector(Node):
             marker.color.a = 1.0
 
             # Set the pose of the marker
-            marker.pose.position.x = float(d[0]) - 0.4
-            marker.pose.position.y = float(d[1]) - 0.25
+            marker.pose.position.x = float(d[0])
+            marker.pose.position.y = float(d[1])
             marker.pose.position.z = float(d[2])
 
             self.marker_pub.publish(marker)

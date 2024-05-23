@@ -125,7 +125,7 @@ class TranformPoints(Node):
         # The point is located 0.5m in from of the robot
         # "Stamped" means that the message type contains a Header
         point_in_robot_frame = PointStamped()
-        point_in_robot_frame.header.frame_id = "/base_link"
+        point_in_robot_frame.header.frame_id = "/top_camera_rgb_camera_frame"
         point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
 
         point_in_robot_frame.point.x = msg.pose.position.x 
@@ -139,7 +139,7 @@ class TranformPoints(Node):
         try:
             # An example of how you can get a transform from /base_link frame to the /map frame
             # as it is at time_now, wait for timeout for it to become available
-            trans = self.tf_buffer.lookup_transform("map", "base_link", time_now, timeout)
+            trans = self.tf_buffer.lookup_transform("map", "top_camera_rgb_camera_frame", time_now, timeout)
 
             # Now we apply the transform to transform the point_in_robot_frame to the map frame
             # The header in the result will be copied from the Header of the transform
