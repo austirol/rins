@@ -22,6 +22,7 @@ import pyttsx3
 import math
 import numpy as np
 import cv2
+import speech_recognition as sr
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped, PointStamped, Twist
@@ -522,6 +523,42 @@ def generate_goal_message(self, x, y, theta=0.2):
 
         return goal_pose
 
+def recognize_colors_from_speech(rc):
+    # Initialize recognizer
+    recognizer = sr.Recognizer()
+    colors = ["red", "blue", "green", "yellow", "black"]
+    
+    # Use the microphone as the source for input
+    with sr.Microphone() as source:
+        # Adjust for ambient noise
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
+        
+        try:
+            # Recognize speech using Google Web Speech API
+            speech_text = recognizer.recognize_google(audio).lower()
+            rc.get_logger().info(f"You said: {speech_text}")
+            
+            # Check for the recognized colors in the speech text
+            recognized_colors = [color for color in colors if color in speech_text]
+            
+            if len(recognized_colors) >= 2:
+                rc.get_logger().info(f"Recognized colors: {recognized_colors[:2]}")
+                return recognized_colors[:2]
+            elif len(recognized_colors) == 1:
+                rc.get_logger().info(f"Only one color recognized: {recognized_colors[0]}")
+                return None
+            else:
+                rc.get_logger().info("No recognized colors in the speech.")
+                return None
+        
+        except sr.UnknownValueError:
+            rc.get_logger().info("Google Speech Recognition could not understand audio")
+            return None
+        except sr.RequestError as e:
+            rc.get_logger().info(f"Could not request results from Google Speech Recognition service; {e}")
+            return None
+
 def approach_face(rc):
     #rc.get_logger().info(f"tukaj, faces:{rc.face_pos}, flags:{rc.face_flag}")
     for j, flag in enumerate(rc.face_flag):
@@ -583,13 +620,19 @@ def approach_face(rc):
 
             #text to speach
             rc.get_logger().info("Text to speech!")
-            rc.engine.say("Hello")
+            rc.engine.say("Do you know where I should look for the Mona Lisa photo")
             rc.engine.runAndWait()
+            # speech recignition
+            two_colors = recognize_colors_from_speech(rc)
             rc.face_flag[j] = True
+            if two_colors != None:
+                # pejd do ringa
+                rc.get_logger().info("grem do ringov")
+                #approach_green_ring(rc, two_colors)
 
             # tuki se to odkomentira če hočmo da gre k zazna tri obraze nazaj v dock
-            if check_if_three_faces(rc):
-                return  # return if three faces are detected
+            #if check_if_three_faces(rc):
+            #    return  # return if three faces are detected
 
             if not rc.is_docked:
                 #restoraj goal
@@ -598,21 +641,21 @@ def approach_face(rc):
                     rc.get_logger().info("Waiting for the task to complete... LOL3")
                     # tuki approach face odkomentiraš da bi ti takoj šel do naslednjega obraza
                     approach_face(rc)
-                    
+                   
                     # rc.cleaner()
                     time.sleep(1)
             else:
                 rc.cancelTask()
                 break
 
-def approach_green_ring(rc):
+def approach_green_ring(rc, colors):
     # if there is only one green ring so we can just take the first element
     if (len(rc.green_ring_pos) == 0):
         return
     
-    rc.cancelTask()
-    time.sleep(1)
-    rc.get_logger().info("Končujem trenutni task da grem do zelenga obroča")
+    #rc.cancelTask()
+    #time.sleep(1)
+    #rc.get_logger().info("Končujem trenutni task da grem do zelenga obroča")
         
     current_pos = rc.current_pose
     point = rc.green_ring_pos[0]
@@ -760,41 +803,41 @@ def main(args=None):
     #         break
 
     ## ZGOLJ ZA POTREBE TESTIRANJA DELOVANJA - TO BO POL DRGAč
+    #for i in range(len(list_of_points)):
+    #    if rc.green_ring_flag:
+    #        break
+    #    if not rc.is_docked:
+    #        goal_pose.pose.position.x = list_of_points[i][0]
+    #        goal_pose.pose.position.y = list_of_points[i][1]
+    #        goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
+    #        rc.goToPose(goal_pose)
+    #       while not rc.isTaskComplete():
+    #            rc.info("Waiting for the task to complete...")
+    #            approach_cylindr(rc)
+    #            time.sleep(1)
+    #    else:
+    #        rc.cancelTask()
+    #        break
+
+
+
     for i in range(len(list_of_points)):
-        if rc.green_ring_flag:
-            break
         if not rc.is_docked:
             goal_pose.pose.position.x = list_of_points[i][0]
             goal_pose.pose.position.y = list_of_points[i][1]
             goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
-                rc.info("Waiting for the task to complete...")
-                approach_cylindr(rc)
-                time.sleep(1)
+                if not rc.is_docked:
+                    rc.get_logger().info("Waiting for the task to complete... LOL")
+                    approach_face(rc)
+                    time.sleep(0.1)
+                else:
+                    rc.cancelTask()
+                    break
         else:
             rc.cancelTask()
             break
-
-
-
-    # for i in range(len(list_of_points)):
-    #     if not rc.is_docked:
-    #         goal_pose.pose.position.x = list_of_points[i][0]
-    #         goal_pose.pose.position.y = list_of_points[i][1]
-    #         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
-    #         rc.goToPose(goal_pose)
-    #         while not rc.isTaskComplete():
-    #             if not rc.is_docked:
-    #                 rc.get_logger().info("Waiting for the task to complete... LOL")
-    #                 approach_face(rc)
-    #                 time.sleep(0.1)
-    #             else:
-    #                 rc.cancelTask()
-    #                 break
-    #     else:
-    #         rc.cancelTask()
-    #         break
 
 
         

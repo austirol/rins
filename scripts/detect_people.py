@@ -47,9 +47,8 @@ class detect_faces(Node):
 		self.faces = []
 
 		self.get_logger().info(f"Node has been initialized! Will publish face markers to {marker_topic}.")
-
+		
 	def rgb_callback(self, data):
-
 		self.faces = []
 
 		try:
@@ -60,33 +59,60 @@ class detect_faces(Node):
 			# run inference
 			res = self.model.predict(cv_image, imgsz=(256, 320), show=False, verbose=False, classes=[0], device=self.device)
 
-			# iterate over results
+			detected_faces = []
 			for x in res:
 				bbox = x.boxes.xyxy
 				if bbox.nelement() == 0: # skip if empty
 					continue
-
-				self.get_logger().info(f"Person has been detected!")
-
 				bbox = bbox[0]
+				detected_faces.append(bbox)
 
-				# draw rectangle
-				cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
+			# Detect rectangles (borders) in the image
+			gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+			blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+			edged = cv2.Canny(blurred, 50, 150)
+			contours, _ = cv2.findContours(edged, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-				cx = int((bbox[0]+bbox[2])/2)
-				cy = int((bbox[1]+bbox[3])/2)
+			rectangles = [cv2.boundingRect(contour) for contour in contours if cv2.contourArea(contour) > 1000]
 
-				# draw the center of bounding box
-				cv_image = cv2.circle(cv_image, (cx,cy), 5, self.detection_color, -1)
+			rectangles = []
+			for contour in contours:
+				if cv2.contourArea(contour) > 1000:
+					# Approximate the contour to a polygon
+					epsilon = 0.08 * cv2.arcLength(contour, True)
+					approx = cv2.approxPolyDP(contour, epsilon, True)
 
-				self.faces.append((cx,cy))
+					# Check if the approximated contour has 4 vertices (is a quadrilateral)
+					if len(approx) == 4:
+						rectangles.append(cv2.boundingRect(contour))
+						# Draw the detected rectangle on the image
+						cv_image = cv2.drawContours(cv_image, [approx], -1, (0, 255, 0), 3)
+
+			# Process detected faces
+			for bbox in detected_faces:
+				cx = int((bbox[0] + bbox[2]) / 2)
+				cy = int((bbox[1] + bbox[3]) / 2)
+
+				# Check if the face is within a detected rectangle
+				is_painting = False
+				for rect in rectangles:
+					x, y, w, h = rect
+					if x <= cx <= x + w and y <= cy <= y + h:
+						is_painting = True
+						break
+
+				if not is_painting and 90 < cx < 180:
+					# Draw rectangle and center of bounding box
+					cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
+					cv_image = cv2.circle(cv_image, (cx, cy), 5, self.detection_color, -1)
+					self.faces.append((cx, cy))
 
 			cv2.imshow("image", cv_image)
 			key = cv2.waitKey(1)
-			if key==27:
+			if key == 27:
 				print("exiting")
 				exit()
-			
+
 		except CvBridgeError as e:
 			print(e)
 
@@ -100,7 +126,7 @@ class detect_faces(Node):
 
 		# iterate over face coordinates
 		for x,y in self.faces:
-
+			
 			# get 3-channel representation of the poitn cloud in numpy format
 			a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
 			a = a.reshape((height,width,3))
@@ -118,7 +144,7 @@ class detect_faces(Node):
 			marker.id = 0
 
 			# Set the scale of the marker
-			scale = 0.1
+			scale = 0.25
 			marker.scale.x = scale
 			marker.scale.y = scale
 			marker.scale.z = scale
