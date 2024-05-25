@@ -75,6 +75,7 @@ class RingDetector(Node):
             [159, 153, 152],
             [137, 105, 105],
             [190, 101, 100],
+            [161, 159, 159],
             [0, 255, 0],     # Green
             [63, 137, 62],
             [25, 124, 23],
@@ -118,7 +119,7 @@ class RingDetector(Node):
         ]
 
         # Corresponding color labels
-        self.color_labels = ["red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red",
+        self.color_labels = ["red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red", "red",
                              "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green", "green",
                              "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue", "blue",  "blue", "blue", "blue",
                              "yellow",

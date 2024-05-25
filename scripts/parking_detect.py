@@ -53,6 +53,7 @@ class ParkingDetector(Node):
         self.when_to_park_sub = self.create_subscription(Bool, "/when_to_park", self.when_to_park_callback, 1)
         self.do_another_hough_sub = self.create_subscription(Bool, "/do_another_hough", self.do_another_hough_callback, 1)
         self.do_another_hough = self.create_publisher(Bool, "/do_another_hough", 1)
+        self.done_parking_pub = self.create_publisher(Bool, "/done_parking", 1)
         self.start_parking = False
 
         cv2.namedWindow("Circle Hough Transform", cv2.WINDOW_NORMAL)
@@ -142,6 +143,7 @@ class ParkingDetector(Node):
                 time.sleep(0.1)
             else:
                 self.get_logger().info("PArked!")
+                self.done_parking_pub.publish(Bool(data=True))
                 
         self.stopHough = True
 

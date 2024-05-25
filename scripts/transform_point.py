@@ -43,10 +43,9 @@ class TranformPoints(Node):
         self.marker_pub = self.create_publisher(Marker, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
         self.marker_pub2 = self.create_publisher(Marker, "/marker_pos_rings", QoSReliabilityPolicy.BEST_EFFORT)
 
-        # for green ring to park under
-        self.green_ring_pub = self.create_publisher(Marker, "/green_ring", QoSReliabilityPolicy.BEST_EFFORT)
         self.is_it_the_same_ring = self.create_publisher(Bool, "/is_it_the_same_ring", 1)
         # For subscribing to the markers
+
         self.marker_sub = self.create_subscription(Marker, "/people_marker", self.timer_callback, 1)
         self.marker_sub_ring = self.create_subscription(Marker, "/ring_marker", self.publish_ring_marker, 1)
 
@@ -148,10 +147,6 @@ class TranformPoints(Node):
 
             if len(self.ring_pos) == 0:
                 self.marker_pub2.publish(marker_in_map_frame)
-
-                # if it's green ring publish it to the green_ring topic
-                if msg.color.r == 0.0 and msg.color.g == 1.0 and msg.color.b == 0.0:
-                    self.green_ring_pub.publish(marker_in_map_frame)
                 
                 self.ring_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                 self.get_logger().info(f"1{self.ring_pos}")
@@ -169,10 +164,6 @@ class TranformPoints(Node):
                         break
                 else:
                     self.marker_pub2.publish(marker_in_map_frame)
-
-                    # if it's green ring publish it to the green_ring topic
-                    if msg.color.r == 0.0 and msg.color.g == 1.0 and msg.color.b == 0.0:
-                        self.green_ring_pub.publish(marker_in_map_frame)
                     
                     self.ring_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                     self.get_logger().info(f"2{self.ring_pos}")

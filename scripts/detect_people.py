@@ -60,6 +60,7 @@ class detect_faces(Node):
 			res = self.model.predict(cv_image, imgsz=(256, 320), show=False, verbose=False, classes=[0], device=self.device)
 
 			detected_faces = []
+			not_drawn_image = cv_image.copy()
 			for x in res:
 				bbox = x.boxes.xyxy
 				if bbox.nelement() == 0: # skip if empty
@@ -93,8 +94,21 @@ class detect_faces(Node):
 				cx = int((bbox[0] + bbox[2]) / 2)
 				cy = int((bbox[1] + bbox[3]) / 2)
 
-				# Check if the face is within a detected rectangle
+				x_min, y_min, x_max, y_max = bbox
+				bottom_border_y = int(y_max.item())
+				bottom_border_x_min = int(x_min.item())
+				bottom_border_x_max = int(x_max.item())
+				border_pixels = not_drawn_image[bottom_border_y, bottom_border_x_min:bottom_border_x_max]
+				average_color = np.mean(border_pixels, axis=0)
+
+				
 				is_painting = False
+				# če so vrednosti tega pod 100 pol je to verjetno slika
+				if all([x < 100 for x in average_color]):
+					is_painting = True
+					continue
+
+				# Check if the face is within a detected rectangle
 				for rect in rectangles:
 					x, y, w, h = rect
 					if x <= cx <= x + w and y <= cy <= y + h:
