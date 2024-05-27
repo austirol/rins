@@ -101,14 +101,19 @@ class RobotCommander(Node):
         self.when_to_park_pub = self.create_publisher(Bool, '/when_to_park', 1)
         self.when_to_detect_cylinders = self.create_publisher(Bool, '/when_to_detected_cylinder', 1)
         self.when_to_detect_qr = self.create_publisher(Bool, '/when_to_detect_qr', 1)
+        self.when_to_detect_faces = self.create_publisher(Bool, '/when_to_detect_faces', 1)
+        self.center_mona_lisa_pub = self.create_publisher(Bool, '/center_mona_lisa', 1)
+        self.when_to_detect_lisas_pub = self.create_publisher(Bool, '/detect_mona_lisas', 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
         self.ring_marker_sub = self.create_subscription(Marker, "/marker_pos_rings", self.ring_handler, 1)
         self.cylinder_sub = self.create_subscription(Marker, "/detected_cylinder", self.cylinder_handler, 1)
+        self.mona_lisa_sub = self.create_subscription(Marker, "/marker_lisa", self.face_handler, 1)
 
         self.ended_qr_sub = self.create_subscription(Bool, '/qr_detection_ended', self.qr_code_hanlder, 1)
         self.done_parking_sub = self.create_subscription(Bool, '/done_parking', self.done_parking_callback, 1)
+        self.centered_lisa_sub = self.create_subscription(Bool, '/centered_lisa', self.centered_lisa_callback, 1)
 
 
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -141,6 +146,9 @@ class RobotCommander(Node):
         self.recognizer = sr.Recognizer()
         self.detected_colors = []
 
+        self.detectLisa = False
+        self.centeredMonaLisa = True
+
         self.get_logger().info(f"Robot commander has been initialized!")
 
     def qr_code_hanlder(self, msg):
@@ -162,6 +170,11 @@ class RobotCommander(Node):
         self.face_pos.append(point)
         self.face_flag.append(False)
 
+        return
+    
+    def centered_lisa_callback(self, msg):
+        self.centeredMonaLisa = msg.data
+        print("Centered Mona Lisa: ", self.centeredMonaLisa)
         return
     
     def ring_handler(self, msg):
@@ -555,6 +568,9 @@ def recognize_colors_from_speech(rc):
             
 
 def approach_face(rc):
+    # da bo samo v tisti funckiji z liso approachal
+    if rc.detectLisa:
+        return
     for j, flag in enumerate(rc.face_flag):
         if not flag and not rc.is_docked and rc.detect_faces:
             #shrani trenutni goal
@@ -566,12 +582,7 @@ def approach_face(rc):
             rc.cancelTask()
             time.sleep(1)
             
-            #pojdi do face
-            # goal_pose = PoseStamped()
-            # goal_pose.header.frame_id = 'map'
-            # goal_pose.header.stamp = rc.get_clock().now().to_msg()
-            
-            # goal_pose +/- 0.2 metra
+            # pojdi do face
             current_x = float(pos_save.pose.position.x)
             current_y = float(pos_save.pose.position.y)
             goal_x = float(rc.face_pos[j]["x"])
@@ -581,14 +592,12 @@ def approach_face(rc):
             goal_pose_vector = np.array([goal_x, goal_y])
             direction_vector = goal_pose_vector - current_pose_vector
             normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+
+            
             new_goal_pose = goal_pose_vector - 0.3 * normalized_direction
+
             goal_x_new = float(new_goal_pose[0])
             goal_y_new = float(new_goal_pose[1])
-            #goal_pose.pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-
-            # kot med face_pos in goal_pos
-            # goal_pose.pose.position.x = goal_x_new
-            # goal_pose.pose.position.y = goal_y_new
 
             razlika_y = goal_y - goal_y_new
             razlika_x = goal_x - goal_x_new
@@ -599,7 +608,6 @@ def approach_face(rc):
             while not rc.isTaskComplete():
                 rc.get_logger().info("Grem do obraza LOL2")
                 time.sleep(1)
-
 
             #text to speach
             rc.get_logger().info("Text to speech!")
@@ -635,6 +643,63 @@ def approach_face(rc):
             else:
                 rc.cancelTask()
                 break
+
+
+def approach_mona_lisa(rc):
+    if not rc.detectLisa:
+        return
+    
+    for j, flag in enumerate(rc.face_flag):
+        if not flag and not rc.is_docked and rc.detectLisa:
+            #shrani trenutni goal
+            goal_save = rc.goal_now
+            #shrani trenutno pozicijo
+            pos_save = rc.current_pose
+            
+            #skenslaj goal
+            rc.cancelTask()
+            time.sleep(1)
+            
+            # pojdi do face
+            current_x = float(pos_save.pose.position.x)
+            current_y = float(pos_save.pose.position.y)
+            goal_x = float(rc.face_pos[j]["x"])
+            goal_y = float(rc.face_pos[j]["y"])
+
+            current_pose_vector = np.array([current_x, current_y])
+            goal_pose_vector = np.array([goal_x, goal_y])
+            direction_vector = goal_pose_vector - current_pose_vector
+            normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+
+            new_goal_pose = goal_pose_vector - 0.5 * normalized_direction
+
+            goal_x_new = float(new_goal_pose[0])
+            goal_y_new = float(new_goal_pose[1])
+
+            razlika_y = goal_y - goal_y_new
+            razlika_x = goal_x - goal_x_new
+            kot = math.atan2(razlika_y, razlika_x)
+            goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new, kot)
+
+            rc.goToPose(goal_pose)
+            while not rc.isTaskComplete():
+                rc.get_logger().info("Grem do obraza LOL2")
+                time.sleep(1)
+
+           
+            # center mona lisa
+            rc.get_logger().info("Centering Mona Lisa")
+            msg = Bool()
+            msg.data = True
+            rc.center_mona_lisa_pub.publish(msg)
+            rc.centeredMonaLisa = False
+
+            while not rc.centeredMonaLisa:
+                rclpy.spin_once(rc, timeout_sec=0.5)
+
+            rc.face_flag[j] = True
+
+            ### model od antona oz anomaly detection še pride
 
 def approach_ring(rc, color):
     ### če ne vem barve še ne grem alpa če še ne vem kje je ring
@@ -751,6 +816,11 @@ def approach_cylindr(rc):
 
 
             rc.cylinder_flag[j] = True
+            ### od tuki naprej zaznava mona lise
+            rc.detectLisa = True
+            msg = Bool()
+            msg.data = True
+            rc.when_to_detect_lisas_pub.publish(msg)
 
 def main(args=None):
     
@@ -766,6 +836,11 @@ def main(args=None):
     msg = String()
     msg.data = "up"
     rc.top_camera_pub.publish(msg)
+
+    # za obraze
+    msg = Bool()
+    msg.data = True
+    rc.when_to_detect_faces.publish(msg)
 
     # Check if the robot is docked, only continue when a message is recieved
     while rc.is_docked is None:
@@ -797,6 +872,7 @@ def main(args=None):
                     rc.get_logger().info("Waiting for the task to complete... LOL")
                     approach_face(rc)
                     approach_ring(rc, rc.the_right_color)
+                    approach_mona_lisa(rc)
                     time.sleep(0.1)
                 else:
                     rc.cancelTask()
