@@ -50,11 +50,13 @@ class detect_faces(Node):
 		self.when_to_detect_sub = self.create_subscription(Bool, "/when_to_detect_faces", self.when_to_detect_callback, 1)
 		self.when_to_start_centering_sub = self.create_subscription(Bool, "/center_mona_lisa", self.when_to_center_callback, 1)
 		self.when_to_detect_lisas_sub = self.create_subscription(Bool, "/detect_mona_lisas", self.detect_lisas, 1)
+		self.when_to_check_anomalys_sub = self.create_subscription(Bool, "/check_for_anomalys", self.when_to_anomalys_callback, 1)
 
 		self.marker_pub = self.create_publisher(Marker, marker_topic, QoSReliabilityPolicy.BEST_EFFORT)
 		self.mona_lisa_pub = self.create_publisher(Marker, "/mona_lisa", QoSReliabilityPolicy.BEST_EFFORT)
 		self.centered_lisa_pub = self.create_publisher(Bool, "/centered_lisa", 1)
 		self.do_face_again_pub = self.create_publisher(Bool, "/when_to_detect_faces", 1)
+		self.anomaly_result_pub = self.create_publisher(Bool, "/anomaly_result", 1)
 
 
 		self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -135,12 +137,12 @@ class detect_faces(Node):
 		# self.no_image = 3888
 
 		# na false
-		self.detectMonaLisas = True
-		self.checkForAnomalys = True
+		self.detectMonaLisas = False
+		self.checkForAnomalys = False
 		self.mona_lisas = []
 
 		## TO DVOJE DEJ NA FALSE - ZA POTREBE ROBBOT KOMANDERJA KASNEJE
-		self.readyToDetect = True
+		self.readyToDetect = False
 		self.center = False
 		
 		self.angle_tolerance = 5
@@ -152,6 +154,11 @@ class detect_faces(Node):
 
 	def when_to_center_callback(self, data):
 		self.center = True
+		self.readyToDetect = True
+		return
+	
+	def when_to_anomalys_callback(self, data):
+		self.checkForAnomalys = True
 		self.readyToDetect = True
 		return
 
@@ -187,25 +194,6 @@ class detect_faces(Node):
 					continue
 				bbox = bbox[0]
 				detected_faces.append(bbox)
-
-				# draw rectangle
-				# cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
-				# self.get_logger().info(str(cv_image.shape))
-				# self.get_logger().info(str([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]))
-				# cv_image = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
-				# self.get_logger().info(str(cv_image.shape))
-
-				# cv2.imwrite(f"real/real_image{self.no_image}.png", cv_image)
-				# self.no_image += 1
-
-				# prediction = inference(cv_image, self.model_anom, self.model_anom_seg)
-				# self.get_logger().info(f"Prediction: {prediction}")
-
-				# ZA MODEL ZAZNAVANJA ANOMALIJ ODKOMENTIRAJ:
-				# un_im = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
-
-				# prediction = inference(un_im, self.model_anom, self.model_anom_seg)
-				# self.get_logger().info(f"Prediction: {prediction}")
 
 			# Process detected faces
 			for bbox in detected_faces:
@@ -260,12 +248,18 @@ class detect_faces(Node):
 
 				if self.checkForAnomalys and is_painting and pixels_in_image > 20000:
 					un_im = not_drawn_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
-					cv2.imshow("cutout", un_im)	
-					prediction = inference(un_im, self.model_anom, self.model_anom_seg)
-					self.get_logger().info(f"Prediction: {prediction}")
+					prediction, _, image_score = inference(un_im, self.model_anom, self.model_anom_seg)
+					self.get_logger().info(f"Prediction: {prediction}, Image score: {image_score}")
 					self.readyToDetect = False
 					self.center = False
 					self.checkForAnomalys = False
+					msgAn = Bool()
+					if prediction == 0:
+						msgAn.data = True
+					else:
+						msgAn.data = False
+					self.anomaly_result_pub.publish(msgAn)
+					
 
 			cv2.imshow("image", cv_image)
 			key = cv2.waitKey(1)
@@ -301,7 +295,6 @@ class detect_faces(Node):
 				self.close_enough = False
 
 		
-
 	def move_robot(self, offset_y, offset_x):
 		twist = Twist()
 		twist.linear.x = 0.1

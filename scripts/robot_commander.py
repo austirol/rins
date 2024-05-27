@@ -104,6 +104,7 @@ class RobotCommander(Node):
         self.when_to_detect_faces = self.create_publisher(Bool, '/when_to_detect_faces', 1)
         self.center_mona_lisa_pub = self.create_publisher(Bool, '/center_mona_lisa', 1)
         self.when_to_detect_lisas_pub = self.create_publisher(Bool, '/detect_mona_lisas', 1)
+        self.when_to_check_for_anomaly = self.create_publisher(Bool, '/check_for_anomalys', 1)
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
@@ -114,6 +115,8 @@ class RobotCommander(Node):
         self.ended_qr_sub = self.create_subscription(Bool, '/qr_detection_ended', self.qr_code_hanlder, 1)
         self.done_parking_sub = self.create_subscription(Bool, '/done_parking', self.done_parking_callback, 1)
         self.centered_lisa_sub = self.create_subscription(Bool, '/centered_lisa', self.centered_lisa_callback, 1)
+
+        self.anomaly_result_sub = self.create_subscription(Bool, '/anomaly_result', self.anomaly_hanlder, 1)
 
 
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -146,8 +149,14 @@ class RobotCommander(Node):
         self.recognizer = sr.Recognizer()
         self.detected_colors = []
 
+        self.mona_lisas = []
+        self.mona_flag = []
+
         self.detectLisa = False
         self.centeredMonaLisa = True
+        self.is_anomaly = False
+        self.got_anomaly_result = False
+        self.the_right_lisa = False
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
@@ -158,6 +167,12 @@ class RobotCommander(Node):
     def done_parking_callback(self, msg):
         self.done_parking = True
         return
+    
+    def anomaly_hanlder(self, msg):
+        self.is_anomaly = msg.data
+        self.got_anomaly_result = True
+        print("Anomaly detected: ", self.is_anomaly)
+        return
 
     def face_handler(self, msg):
         x = msg.pose.position.x
@@ -167,8 +182,12 @@ class RobotCommander(Node):
 
         point = {"x":x, "y":y, "z":z}
 
-        self.face_pos.append(point)
-        self.face_flag.append(False)
+        if self.detectLisa:
+            self.mona_lisas.append(point)
+            self.mona_flag.append(False)
+        else:
+            self.face_pos.append(point)
+            self.face_flag.append(False)
 
         return
     
@@ -649,7 +668,7 @@ def approach_mona_lisa(rc):
     if not rc.detectLisa:
         return
     
-    for j, flag in enumerate(rc.face_flag):
+    for j, flag in enumerate(rc.mona_flag):
         if not flag and not rc.is_docked and rc.detectLisa:
             #shrani trenutni goal
             goal_save = rc.goal_now
@@ -663,8 +682,8 @@ def approach_mona_lisa(rc):
             # pojdi do face
             current_x = float(pos_save.pose.position.x)
             current_y = float(pos_save.pose.position.y)
-            goal_x = float(rc.face_pos[j]["x"])
-            goal_y = float(rc.face_pos[j]["y"])
+            goal_x = float(rc.mona_lisas[j]["x"])
+            goal_y = float(rc.mona_lisas[j]["y"])
 
             current_pose_vector = np.array([current_x, current_y])
             goal_pose_vector = np.array([goal_x, goal_y])
@@ -683,7 +702,7 @@ def approach_mona_lisa(rc):
 
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
-                rc.get_logger().info("Grem do obraza LOL2")
+                rc.get_logger().info("Grem do MONA LISE LOL2")
                 time.sleep(1)
 
            
@@ -697,9 +716,27 @@ def approach_mona_lisa(rc):
             while not rc.centeredMonaLisa:
                 rclpy.spin_once(rc, timeout_sec=0.5)
 
-            rc.face_flag[j] = True
+            rc.mona_flag[j] = True
 
             ### model od antona oz anomaly detection še pride
+            rc.get_logger().info("Publishing to /check_for_anomaly")
+            msg = Bool()
+            msg.data = True
+            rc.when_to_check_for_anomaly.publish(msg)
+
+            while not rc.got_anomaly_result:
+                rclpy.spin_once(rc, timeout_sec=0.5)
+
+            if rc.is_anomaly:
+                rc.get_logger().info("Anomaly detected")
+            else:
+                rc.get_logger().info("Text to speech!")
+                rc.engine.say("This is the Mona Lisa photo")
+                rc.engine.runAndWait()
+                rc.the_right_lisa = True
+
+            rc.got_anomaly_result = False
+
 
 def approach_ring(rc, color):
     ### če ne vem barve še ne grem alpa če še ne vem kje je ring
@@ -862,7 +899,7 @@ def main(args=None):
     rc.when_to_detect_rings.publish(msg)
 
     for i in range(len(list_of_points)):
-        if not rc.is_docked:
+        if not rc.is_docked and not rc.the_right_lisa:
             goal_pose.pose.position.x = list_of_points[i][0]
             goal_pose.pose.position.y = list_of_points[i][1]
             goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
@@ -881,11 +918,8 @@ def main(args=None):
             rc.cancelTask()
             break
 
-
-        
     
     #rc.destroyNode()
-    #rclpy.spin(rc)
     
 
     # And a simple example
