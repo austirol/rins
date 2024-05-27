@@ -61,7 +61,6 @@ class detect_faces(Node):
 
 		self.faces = []
 
-
 		# self.model_anom, self.model_anom_seg = load_models()
 
 		# self.no_image = 3888
@@ -112,12 +111,11 @@ class detect_faces(Node):
 				bbox = bbox[0]
 				detected_faces.append(bbox)
 
-
 				# draw rectangle
 				# cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
 				# self.get_logger().info(str(cv_image.shape))
 				# self.get_logger().info(str([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]))
-				cv_image = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
+				# cv_image = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
 				# self.get_logger().info(str(cv_image.shape))
 
 				# cv2.imwrite(f"real/real_image{self.no_image}.png", cv_image)
@@ -126,11 +124,11 @@ class detect_faces(Node):
 				# prediction = inference(cv_image, self.model_anom, self.model_anom_seg)
 				# self.get_logger().info(f"Prediction: {prediction}")
 
-				cx = int((bbox[0]+bbox[2])/2)
-				cy = int((bbox[1]+bbox[3])/2)
+				# ZA MODEL ZAZNAVANJA ANOMALIJ ODKOMENTIRAJ:
+				# un_im = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
 
-				# draw the center of bounding box
-				cv_image = cv2.circle(cv_image, (cx,cy), 5, self.detection_color, -1)
+				# prediction = inference(un_im, self.model_anom, self.model_anom_seg)
+				# self.get_logger().info(f"Prediction: {prediction}")
 
 			# Detect rectangles (borders) in the image
 			gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
