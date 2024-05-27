@@ -54,7 +54,7 @@ class ParkingDetector(Node):
         self.do_another_hough_sub = self.create_subscription(Bool, "/do_another_hough", self.do_another_hough_callback, 1)
         self.do_another_hough = self.create_publisher(Bool, "/do_another_hough", 1)
         self.done_parking_pub = self.create_publisher(Bool, "/done_parking", 1)
-        self.start_parking = False
+        self.start_parking = True
 
         cv2.namedWindow("Circle Hough Transform", cv2.WINDOW_NORMAL)
 
@@ -67,6 +67,7 @@ class ParkingDetector(Node):
         self.moved = False
         self.change_direction = False
         self.previous_offset = 0
+        self.the_same_too_long = 0
         
     def do_another_hough_callback(self, data):
         self.stopHough = False
@@ -105,9 +106,15 @@ class ParkingDetector(Node):
                 offset_x = self.parking_pos[-1][0]
                 offset_y = self.parking_pos[-1][1]
                 print(f"Offset x: {offset_x}, Offset y: {offset_y}", self.previous_offset)
-                if (offset_y <= self.previous_offset) and self.moved:
+                if (offset_y < self.previous_offset) and self.moved:
                     print("Changing direction")
-                    self.change_direction = True
+                    self.change_direction = not self.change_direction
+
+                if (offset_y == self.previous_offset):
+                    self.the_same_too_long += 1
+                    if self.the_same_too_long >= 3:
+                        self.change_direction = not self.change_direction
+                        self.the_same_too_long = 0
 
                 self.move_robot(offset_y)
                 self.stopHough = True
@@ -150,6 +157,8 @@ class ParkingDetector(Node):
     def move_robot(self, offset_y):
         twist = Twist()
         self.get_logger().info(f"I am not in the center. Moving...")
+        print(f'Offset:  {offset_y}')
+        print(self.change_direction)
         # to zato k včasih je zmeden
         self.previous_offset = offset_y
         if not self.change_direction:
