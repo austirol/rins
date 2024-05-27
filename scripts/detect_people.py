@@ -134,11 +134,13 @@ class detect_faces(Node):
 
 		# self.no_image = 3888
 
-		self.detectMonaLisas = False
+		# na false
+		self.detectMonaLisas = True
+		self.checkForAnomalys = True
 		self.mona_lisas = []
 
 		## TO DVOJE DEJ NA FALSE - ZA POTREBE ROBBOT KOMANDERJA KASNEJE
-		self.readyToDetect = False
+		self.readyToDetect = True
 		self.center = False
 		
 		self.angle_tolerance = 5
@@ -255,11 +257,22 @@ class detect_faces(Node):
 					if self.center:
 						self.move_robot_to_center_the_image(offset_x, offset_y, pixels_in_image)
 
+
+				if self.checkForAnomalys and is_painting and pixels_in_image > 20000:
+					un_im = not_drawn_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
+					cv2.imshow("cutout", un_im)	
+					prediction = inference(un_im, self.model_anom, self.model_anom_seg)
+					self.get_logger().info(f"Prediction: {prediction}")
+					self.readyToDetect = False
+					self.center = False
+					self.checkForAnomalys = False
+
 			cv2.imshow("image", cv_image)
 			key = cv2.waitKey(1)
 			if key == 27:
 				print("exiting")
 				exit()
+				
 
 		except CvBridgeError as e:
 			print(e)
@@ -379,8 +392,6 @@ class detect_faces(Node):
 				marker.pose.position.x = float(d[0])
 				marker.pose.position.y = float(d[1])
 				marker.pose.position.z = float(d[2])
-
-				print("PUBLISHING", d[0], d[1], d[2])
 
 				self.mona_lisa_pub.publish(marker)
 
