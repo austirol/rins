@@ -22,6 +22,7 @@ import pyttsx3
 import math
 import numpy as np
 import cv2
+import speech_recognition as sr
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Quaternion, PoseStamped, PoseWithCovarianceStamped, PointStamped, Twist
@@ -103,13 +104,11 @@ class RobotCommander(Node):
         
         # marker position listener
         self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
-        self.green_ring_sub = self.create_subscription(Marker, "/green_ring", self.green_ring_handler, 1)
+        self.ring_marker_sub = self.create_subscription(Marker, "/marker_pos_rings", self.ring_handler, 1)
         self.cylinder_sub = self.create_subscription(Marker, "/detected_cylinder", self.cylinder_handler, 1)
 
-        # image subscriber
-        #self.image_sub = self.create_subscription(Image, "/top_camera/rgb/preview/image_raw", self.qr_code_hanlder, 1)
-
         self.ended_qr_sub = self.create_subscription(Bool, '/qr_detection_ended', self.qr_code_hanlder, 1)
+        self.done_parking_sub = self.create_subscription(Bool, '/done_parking', self.done_parking_callback, 1)
 
 
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -123,24 +122,33 @@ class RobotCommander(Node):
         # pictures
         self.face_pos = []
         self.face_flag = []
+        self.detect_faces = True
 
-        # green ring
-        self.green_ring_pos = []
-        self.green_ring_flag = False
+        # rings
+        self.rings_and_positons = {}
+        self.the_right_color = ""
+        self.done = False
 
         # cylinder
         self.cylinder_pos = []
         self.cylinder_flag = []
         self.continue_walking = False
-        # self.detectQR = False
-        # self.QR_detector = cv2.QRCodeDetector()
-        # cv2.namedWindow("QR CODE", cv2.WINDOW_NORMAL)
+
+        # parking
+        self.done_parking = False
+
+        # speech recognition
+        self.recognizer = sr.Recognizer()
+        self.detected_colors = []
 
         self.get_logger().info(f"Robot commander has been initialized!")
 
     def qr_code_hanlder(self, msg):
-        print("RECEIVED MESSAGE")
         self.continue_walking = True
+        return
+    
+    def done_parking_callback(self, msg):
+        self.done_parking = True
         return
 
     def face_handler(self, msg):
@@ -156,15 +164,29 @@ class RobotCommander(Node):
 
         return
     
-    def green_ring_handler(self, msg):
-        print("Green ring detected!")
+    def ring_handler(self, msg):
         x = msg.pose.position.x
         y = msg.pose.position.y
         z = msg.pose.position.z
 
         point = {"x":x, "y":y, "z":z}
+        
+        color_red = msg.color.r
+        color_green = msg.color.g
+        color_blue = msg.color.b
+        color_name = ""
 
-        self.green_ring_pos.append(point)
+        if color_red == 1.0 and color_green == 0.0 and color_blue == 0.0:
+            color_name = "red"
+        elif color_red == 0.0 and color_green == 1.0 and color_blue == 0.0:
+            color_name = "green"
+        elif color_red == 0.0 and color_green == 0.0 and color_blue == 1.0:
+            color_name = "blue"
+        elif color_red == 0.0 and color_green == 0.0 and color_blue == 0.0:
+            color_name = "black"
+
+        self.rings_and_positons[color_name] = point
+    
         return
     
     def cylinder_handler(self, msg):
@@ -178,35 +200,6 @@ class RobotCommander(Node):
         self.cylinder_pos.append(point)
         self.cylinder_flag.append(False)
         return
-    
-    # def qr_code_hanlder(self, msg):
-    #     # if not self.detectQR:
-    #     #     return
-        
-    #     print("ON IT")
-    #     try :
-    #         cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-    #     except CvBridgeError as e:
-    #         print(e)
-
-
-    #     data, bbox, _ = self.QR_detector.detectAndDecode(cv_image)
-    #     if bbox is None or data == "":
-    #         print("QR Code not detected")
-    #         twist = Twist()
-    #         twist.angular.z = 0.5
-    #         self.cmd_vel_pub.publish(twist)
-    #         time.sleep(0.1)
-    #     else: 
-    #         print("QR Code detected")
-    #         cv2.imshow("QR CODE", cv_image)
-    #         cv2.waitKey(1)
-
-    #         if data.startswith("https"):
-    #             self.image_url = data
-
-
-    #     return
 
     def destroyNode(self):
         self.nav_to_pose_client.destroy()
@@ -522,10 +515,48 @@ def generate_goal_message(self, x, y, theta=0.2):
 
         return goal_pose
 
+def recognize_colors_from_speech(rc):
+    # Initialize recognizer
+    colors = ["red", "blue", "green", "yellow", "black"]
+
+    while True:
+        with sr.Microphone() as source:
+            # Adjust for ambient noise
+            rc.recognizer.adjust_for_ambient_noise(source)
+            rc.get_logger().info("Say two colors")
+            
+            audio = rc.recognizer.listen(source)
+        
+            try:
+                # Recognize speech using Google Web Speech API
+                speech_text = rc.recognizer.recognize_google(audio).lower()
+                rc.get_logger().info(f"You said: {speech_text}")
+                
+                # Check for the recognized colors in the speech text
+                recognized_colors = [color for color in colors if color in speech_text]
+                
+                if len(recognized_colors) >= 2:
+                    rc.get_logger().info(f"Recognized colors: {recognized_colors[:2]}")
+                    for color in recognized_colors[:2]:
+                        rc.detected_colors.append(color)
+                    return recognized_colors[:2]
+                elif len(recognized_colors) == 1:
+                    rc.get_logger().info(f"Only one color recognized: {recognized_colors[0]}")
+                    rc.get_logger().info("Please say another color.")
+                else:
+                    rc.get_logger().info("Okay so dont tell me.")
+                    return None
+        
+            except sr.UnknownValueError:
+                rc.get_logger().info("Google Speech Recognition could not understand audio. Please try again.")
+            except sr.RequestError as e:
+                rc.get_logger().info(f"Could not request results from Google Speech Recognition service; {e}")
+                return None
+            
+
 def approach_face(rc):
-    #rc.get_logger().info(f"tukaj, faces:{rc.face_pos}, flags:{rc.face_flag}")
     for j, flag in enumerate(rc.face_flag):
-        if not flag and not rc.is_docked:
+        if not flag and not rc.is_docked and rc.detect_faces:
             #shrani trenutni goal
             goal_save = rc.goal_now
             #shrani trenutno pozicijo
@@ -565,57 +596,57 @@ def approach_face(rc):
             goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new, kot)
 
             rc.goToPose(goal_pose)
-            #rc.info("1")
             while not rc.isTaskComplete():
                 rc.get_logger().info("Grem do obraza LOL2")
-                # rc.cleaner()
                 time.sleep(1)
 
 
-            # yaw_orientation = quaternion_to_yaw([pos_save.pose.orientation.x,
-            #                                       pos_save.pose.orientation.y,
-            #                                       pos_save.pose.orientation.z,
-            #                                       pos_save.pose.orientation.w])
-            # orientation_vector = np.array([np.cos(yaw_orientation), np.sin(yaw_orientation)])
-            # kot = angle(orientation_vector, direction_vector)
-            # rc.get_logger().info(str(kot))
-            # rc.spin(kot)
-
             #text to speach
             rc.get_logger().info("Text to speech!")
-            rc.engine.say("Hello")
+            rc.engine.say("Do you know where I should look for the Mona Lisa photo")
             rc.engine.runAndWait()
+            # speech recignition
+            two_colors = recognize_colors_from_speech(rc)
             rc.face_flag[j] = True
 
-            # tuki se to odkomentira če hočmo da gre k zazna tri obraze nazaj v dock
-            if check_if_three_faces(rc):
-                return  # return if three faces are detected
+            print("Detected colors: ", rc.detected_colors)
+            if len(rc.detected_colors) == 4:
+                rc.get_logger().info("Found four colors")
+                for color in rc.detected_colors:
+                    if rc.detected_colors.count(color) == 2:
+                        rc.the_right_color = color
+                        rc.detect_faces = False
+                        break
 
-            if not rc.is_docked:
+            # tuki se to odkomentira če hočmo da gre k zazna tri obraze nazaj v dock
+            #if check_if_three_faces(rc):
+            #    return  # return if three faces are detected
+
+            if not rc.is_docked and rc.detect_faces:
                 #restoraj goal
                 rc.goToPose(goal_save)
                 while not rc.isTaskComplete():
                     rc.get_logger().info("Waiting for the task to complete... LOL3")
                     # tuki approach face odkomentiraš da bi ti takoj šel do naslednjega obraza
                     approach_face(rc)
-                    
+                   
                     # rc.cleaner()
                     time.sleep(1)
             else:
                 rc.cancelTask()
                 break
 
-def approach_green_ring(rc):
-    # if there is only one green ring so we can just take the first element
-    if (len(rc.green_ring_pos) == 0):
+def approach_ring(rc, color):
+    ### če ne vem barve še ne grem alpa če še ne vem kje je ring
+    if (color == "" or rc.done or color not in rc.rings_and_positons):
         return
-    
+
     rc.cancelTask()
     time.sleep(1)
-    rc.get_logger().info("Končujem trenutni task da grem do zelenga obroča")
+    rc.get_logger().info(f'Approaching ring of color {color}')
         
     current_pos = rc.current_pose
-    point = rc.green_ring_pos[0]
+    point = rc.rings_and_positons[color]
     goal_x = float(point["x"]) 
     goal_y = float(point["y"]) 
 
@@ -631,8 +662,7 @@ def approach_green_ring(rc):
 
     rc.goToPose(goal_pose)
     while not rc.isTaskComplete():
-        rc.get_logger().info("Premikam se do zelenega obroča")
-
+        rc.get_logger().info(f'GOING TOOOOOO RING {color}')
         current_pos = rc.current_pose
         time.sleep(3)
 
@@ -649,8 +679,26 @@ def approach_green_ring(rc):
     msg.data = True
     rc.when_to_park_pub.publish(msg)
 
+    rc.done = True
 
-    rc.green_ring_flag = True
+    ## počakamo
+    while not rc.done_parking:
+        rclpy.spin_once(rc, timeout_sec=0.5)
+
+    print("Publishing to /when_to_detected_cylinder")
+    msg = Bool()
+    msg.data = True
+    rc.when_to_detect_cylinders.publish(msg)
+    
+    ## vrtimo dokler ne najdemo cilindra
+    while len(rc.cylinder_flag) == 0:
+        twis = Twist()
+        twis.angular.z = 0.5
+        rc.cmd_vel_pub.publish(twis)
+        time.sleep(0.1)
+        rclpy.spin_once(rc, timeout_sec=0.5)
+
+    approach_cylindr(rc)
 
 def approach_cylindr(rc):
     for j, flag in enumerate(rc.cylinder_flag):
@@ -700,7 +748,8 @@ def approach_cylindr(rc):
             while not rc.continue_walking:
                 # TALE UKAZ TI NE USTAV CELOTNEGA PROGRAMA
                 rclpy.spin_once(rc, timeout_sec=0.5)
-            
+
+
             rc.cylinder_flag[j] = True
 
 def main(args=None):
@@ -737,64 +786,24 @@ def main(args=None):
     msg.data = True
     rc.when_to_detect_rings.publish(msg)
 
-    # publish to /when_to_detect_cylinders
-    print("Publishing to /when_to_detected_cylinder")
-    msg = Bool()
-    msg.data = True
-    rc.when_to_detect_cylinders.publish(msg)
-
-    # for i in range(len(list_of_points)):
-    #     if rc.green_ring_flag:
-    #         break
-    #     if not rc.is_docked:
-    #         goal_pose.pose.position.x = list_of_points[i][0]
-    #         goal_pose.pose.position.y = list_of_points[i][1]
-    #         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
-    #         rc.goToPose(goal_pose)
-    #         while not rc.isTaskComplete():
-    #             rc.info("Waiting for the task to complete...")
-    #             approach_green_ring(rc)
-    #             time.sleep(1)
-    #     else:
-    #         rc.cancelTask()
-    #         break
-
-    ## ZGOLJ ZA POTREBE TESTIRANJA DELOVANJA - TO BO POL DRGAč
     for i in range(len(list_of_points)):
-        if rc.green_ring_flag:
-            break
         if not rc.is_docked:
             goal_pose.pose.position.x = list_of_points[i][0]
             goal_pose.pose.position.y = list_of_points[i][1]
             goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
-                rc.info("Waiting for the task to complete...")
-                approach_cylindr(rc)
-                time.sleep(1)
+                if not rc.is_docked:
+                    rc.get_logger().info("Waiting for the task to complete... LOL")
+                    approach_face(rc)
+                    approach_ring(rc, rc.the_right_color)
+                    time.sleep(0.1)
+                else:
+                    rc.cancelTask()
+                    break
         else:
             rc.cancelTask()
             break
-
-
-
-    # for i in range(len(list_of_points)):
-    #     if not rc.is_docked:
-    #         goal_pose.pose.position.x = list_of_points[i][0]
-    #         goal_pose.pose.position.y = list_of_points[i][1]
-    #         goal_pose.pose.orientation = rc.YawToQuaternion(list_of_points[i][2])
-    #         rc.goToPose(goal_pose)
-    #         while not rc.isTaskComplete():
-    #             if not rc.is_docked:
-    #                 rc.get_logger().info("Waiting for the task to complete... LOL")
-    #                 approach_face(rc)
-    #                 time.sleep(0.1)
-    #             else:
-    #                 rc.cancelTask()
-    #                 break
-    #     else:
-    #         rc.cancelTask()
-    #         break
 
 
         

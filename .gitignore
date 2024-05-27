@@ -1,1 +1,4 @@
 .vscode/
+anomaly_detection
+scripts/checkpoints/DRAEM_test_0.0001_720_bs8_real__seg.pckl
+scripts/checkpoints/DRAEM_test_0.0001_720_bs8_real_.pckl
