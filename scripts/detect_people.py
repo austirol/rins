@@ -19,7 +19,7 @@ import time
 
 from ultralytics import YOLO
 
-# from inference import load_models, inference
+from inference import load_models, inference
 
 # from rclpy.parameter import Parameter
 # from rcl_interfaces.msg import SetParametersResult
@@ -62,7 +62,7 @@ class detect_faces(Node):
 
 		self.faces = []
 
-		# self.model_anom, self.model_anom_seg = load_models()
+		self.model_anom, self.model_anom_seg = load_models()
 
 		# self.no_image = 3888
 
