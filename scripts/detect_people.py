@@ -16,6 +16,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import numpy as np
 import time
+from sklearn.neighbors import KNeighborsClassifier
 
 from ultralytics import YOLO
 
@@ -61,6 +62,73 @@ class detect_faces(Node):
 		self.model = YOLO("yolov8n.pt")
 
 		self.faces = []
+		self.candidates = {}
+		self.rgb_values = [
+			[39, 68, 66],     # Mona Lisa's average colors
+			[36, 86, 61],
+			[38, 72, 64],
+			[38, 76, 64],
+			[37, 85, 60],
+			[37, 83, 60],
+			[17.9, 23.8, 34],
+			[17, 55, 27],
+			[17, 60, 28],
+			[17, 68, 29],
+			[17, 48, 29],
+			[18, 37, 31],
+			[18, 39, 31],
+			[20, 39, 35],     
+			[20, 50, 60],
+			[40, 70, 65],
+			[40, 60, 70],
+			[40, 60, 70],
+			[35, 90, 60],
+			[17, 47, 28],
+			[17, 57, 28],
+			[18, 40, 31],
+			[19, 29, 32],
+			[22, 56, 30],
+			[22, 64, 28],
+			[22, 70, 28],     
+			[34, 90, 59],
+			[33, 94, 57],
+			[36, 80, 63],
+			[36, 84, 63],
+			[38, 73.5, 65],
+			[15, 80, 26],
+			[35, 87, 61],
+			[102, 99, 140],  # Other detected faces
+			[105, 115, 143],
+			[108, 120, 147],
+			[107, 120, 147],
+			[75, 80, 80],   
+			[73, 77, 80], 
+			[71, 81, 83],
+			[56, 58, 64],
+			[65, 66, 71],
+			[63, 64, 70],
+			[67, 69, 74],
+			[70, 71, 77],
+			[50, 58, 60],
+			[52, 60, 68],
+			[54, 62, 70],
+			[132, 125, 147],
+			[123, 138, 153],
+			[124, 137, 152],
+			[125, 140, 176],
+			[122, 135, 140],
+			[155, 165, 171],
+			[166, 175, 181],
+			[177, 184, 189],
+		]
+
+		# Corresponding color labels
+		self.color_labels = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+		# Train the classifier
+		self.classifier = KNeighborsClassifier(n_neighbors=1)
+		self.classifier.fit(self.rgb_values, self.color_labels)
 
 		# self.model_anom, self.model_anom_seg = load_models()
 
@@ -98,8 +166,8 @@ class detect_faces(Node):
 	def rgb_callback(self, data):
 		self.faces = []
 		self.mona_lisas = []
-		if not self.readyToDetect:
-			return
+		#if not self.readyToDetect:
+		#	return
 
 		try:
 			cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -137,26 +205,6 @@ class detect_faces(Node):
 				# prediction = inference(un_im, self.model_anom, self.model_anom_seg)
 				# self.get_logger().info(f"Prediction: {prediction}")
 
-			# Detect rectangles (borders) in the image
-			gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-			blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-			edged = cv2.Canny(blurred, 50, 150)
-			contours, _ = cv2.findContours(edged, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-			rectangles = [cv2.boundingRect(contour) for contour in contours if cv2.contourArea(contour) > 1000]
-
-			rectangles = []
-			for contour in contours:
-				if cv2.contourArea(contour) > 1000:
-					# Approximate the contour to a polygon
-					epsilon = 0.08 * cv2.arcLength(contour, True)
-					approx = cv2.approxPolyDP(contour, epsilon, True)
-
-					# Check if the approximated contour has 4 vertices (is a quadrilateral)
-					if len(approx) == 4:
-						rectangles.append(cv2.boundingRect(contour))
-						
-
 			# Process detected faces
 			for bbox in detected_faces:
 				cx = int((bbox[0] + bbox[2]) / 2)
@@ -175,7 +223,12 @@ class detect_faces(Node):
 
 				cv_image_cutout = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
 				pixels_in_image = cv_image_cutout.size
-
+				img_mean = cv_image_cutout.mean(axis=(0,1))
+				#self.get_logger().info(f"{img_mean}\n")
+				pred = self.classifier.predict([img_mean])
+				if pred == 1:
+					is_painting = True
+					
 				# če so vrednosti tega pod 90 pol je to verjetno slika
 				if bottom_border_y >= cv_image.shape[0] or bottom_border_x_min >= cv_image.shape[1] or bottom_border_x_max >= cv_image.shape[1]:
 					bottom_border_y = cv_image.shape[0] - 1
@@ -185,25 +238,16 @@ class detect_faces(Node):
 				if (all(not_drawn_image[bottom_border_y, bottom_border_x_min] < 90) and all(not_drawn_image[bottom_border_y, bottom_border_x_max] < 90)):
 					is_painting = True
 
-				# Check if the face is within a detected rectangle
-				if self.center: ### samo ko self center ko se centrira ker je drugače preveč false positive
-					for rect in rectangles:
-						x, y, w, h = rect
-						if x <= cx <= x + w and y <= cy <= y + h:
-							is_painting = True
-							break
-				
-
 				# if self.center:
 				# 	self.move_robot_to_center_the_image(offset_x, offset_y)
 
-				if not is_painting and 90 < cx < 180:
+				if not is_painting:
 					# Draw rectangle and center of bounding box
 					cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
 					cv_image = cv2.circle(cv_image, (cx, cy), 5, self.detection_color, -1)
 					self.faces.append((cx, cy))
 
-				if self.detectMonaLisas and is_painting and 90 < cx < 180:
+				if self.detectMonaLisas and is_painting:
 					cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 3)
 					cv_image = cv2.circle(cv_image, (cx, cy), 5, (0, 255, 0), -1)
 					self.mona_lisas.append((cx, cy))
