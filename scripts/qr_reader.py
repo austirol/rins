@@ -67,7 +67,7 @@ class QrReader(Node):
         if bbox is None or data == "":
             print("QR Code not detected")
             twist = Twist()
-            twist.angular.z = 0.2
+            twist.angular.z = 0.5
             self.cmd_vel_pub.publish(twist)
             self.detectQR = True
             time.sleep(0.1)
@@ -79,6 +79,7 @@ class QrReader(Node):
 
             if data.startswith("https"):
                 self.image_url = data
+                print("URL: ", self.image_url)
 
         
         msg = Bool()

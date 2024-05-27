@@ -55,7 +55,6 @@ class TranformPoints(Node):
         # self.timer = self.create_timer(timer_period, self.timer_callback)
         self.face_pos = []
         self.ring_pos = []
-        self.parking_pos = []
         self.mona_pos = []
 
     def timer_callback(self, msg):
@@ -90,7 +89,6 @@ class TranformPoints(Node):
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
             marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
 
-			
             # # publishamo samo v primeru ko je marker nov torej ni v arrayu self.face_pos ali bližini 0.5
             if len(self.face_pos) == 0:
                 self.marker_pub.publish(marker_in_map_frame)
@@ -112,13 +110,11 @@ class TranformPoints(Node):
                     self.get_logger().info(f"Face detected at: {point_in_map_frame.point}")
                     self.marker_id += 1
 
-            
-
         except TransformException as te:
             self.get_logger().info(f"Cound not get the transform: {te}")
 
     def mona_lisa_callback(self, msg):
-        # Create a PointStamped in the /base_link frame of the robot
+         # Create a PointStamped in the /base_link frame of the robot
         # The point is located 0.5m in from of the robot
         # "Stamped" means that the message type contains a Header
         point_in_robot_frame = PointStamped()
@@ -127,7 +123,9 @@ class TranformPoints(Node):
 
         point_in_robot_frame.point.x = msg.pose.position.x
         point_in_robot_frame.point.y = msg.pose.position.y
-        point_in_robot_frame.point.z = msg.pose.position.z
+        point_in_robot_frame.point.z = msg.pose.position.z 
+
+        orientation = msg.pose.orientation
 
         # Now we look up the transform between the base_link and the map frames
         # and then we apply it to our PointStamped
@@ -137,26 +135,28 @@ class TranformPoints(Node):
             # An example of how you can get a transform from /base_link frame to the /map frame
             # as it is at time_now, wait for timeout for it to become available
             trans = self.tf_buffer.lookup_transform("map", "base_link", time_now, timeout)
-            self.get_logger().info(f"Looks like the transform is available.")
 
             # Now we apply the transform to transform the point_in_robot_frame to the map frame
             # The header in the result will be copied from the Header of the transform
             point_in_map_frame = tfg.do_transform_point(point_in_robot_frame, trans)
-            self.get_logger().info(f"We transformed a PointStamped! JUHEEEJ: {point_in_map_frame}")
 
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
             marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
 
+            if point_in_map_frame.point.x != point_in_map_frame.point.x:
+                return
+
+            # # publishamo samo v primeru ko je marker nov torej ni v arrayu self.face_pos ali bližini 0.5
             if len(self.mona_pos) == 0:
                 self.mona_lisa_pub.publish(marker_in_map_frame)
                 self.mona_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                 # log
-                self.get_logger().info(f"Mona Lisa detected at: {point_in_map_frame.point}")
+                self.get_logger().info(f"MONA detected at: {point_in_map_frame.point}")
                 self.marker_id += 1
 
             else:
                 for i in self.mona_pos:
-                    if abs(i["x"]-point_in_map_frame.point.x) < 0.5 and abs(i["y"]-point_in_map_frame.point.y) < 0.5 and abs(i["z"]-point_in_map_frame.point.z) < 0.5:
+                    if abs(i["x"]-point_in_map_frame.point.x) < 0.8 and abs(i["y"]-point_in_map_frame.point.y) < 0.8 and abs(i["z"]-point_in_map_frame.point.z) < 0.8:
                         # log
                         self.get_logger().info(f"ISTI")
                         break
@@ -164,11 +164,12 @@ class TranformPoints(Node):
                     self.mona_lisa_pub.publish(marker_in_map_frame)
                     self.mona_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                     # log
-                    self.get_logger().info(f"Mona Lisa detected at: {point_in_map_frame.point}")
-                    self.marker_id += 1
+                    self.get_logger().info(f"MONA detected at: {point_in_map_frame.point}")
+                    self.marker_id += 1     
 
         except TransformException as te:
             self.get_logger().info(f"Cound not get the transform: {te}")
+
 
     def publish_ring_marker(self, msg):
         point_in_robot_frame = PointStamped()

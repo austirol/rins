@@ -48,6 +48,7 @@ class detect_faces(Node):
 
 		self.when_to_detect_sub = self.create_subscription(Bool, "/when_to_detect_faces", self.when_to_detect_callback, 1)
 		self.when_to_start_centering_sub = self.create_subscription(Bool, "/center_mona_lisa", self.when_to_center_callback, 1)
+		self.when_to_detect_lisas_sub = self.create_subscription(Bool, "/detect_mona_lisas", self.detect_lisas, 1)
 
 		self.marker_pub = self.create_publisher(Marker, marker_topic, QoSReliabilityPolicy.BEST_EFFORT)
 		self.mona_lisa_pub = self.create_publisher(Marker, "/mona_lisa", QoSReliabilityPolicy.BEST_EFFORT)
@@ -69,8 +70,8 @@ class detect_faces(Node):
 		self.mona_lisas = []
 
 		## TO DVOJE DEJ NA FALSE - ZA POTREBE ROBBOT KOMANDERJA KASNEJE
-		self.readyToDetect = True
-		self.center = True
+		self.readyToDetect = False
+		self.center = False
 		
 		self.angle_tolerance = 5
 		self.min_pixels_in_image = 20000
@@ -84,6 +85,11 @@ class detect_faces(Node):
 		self.readyToDetect = True
 		return
 
+	def detect_lisas(self, data):
+		self.detectMonaLisas = True
+		self.readyToDetect = True
+		return
+
 	def when_to_detect_callback(self, data):
 		self.readyToDetect = True
 
@@ -91,13 +97,14 @@ class detect_faces(Node):
 		
 	def rgb_callback(self, data):
 		self.faces = []
+		self.mona_lisas = []
 		if not self.readyToDetect:
 			return
 
 		try:
 			cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
 
-			self.get_logger().info(f"Running inference on image...")
+			#self.get_logger().info(f"Running inference on image...")
 
 			# run inference
 			res = self.model.predict(cv_image, imgsz=(256, 320), show=False, verbose=False, classes=[0], device=self.device)
@@ -148,8 +155,7 @@ class detect_faces(Node):
 					# Check if the approximated contour has 4 vertices (is a quadrilateral)
 					if len(approx) == 4:
 						rectangles.append(cv2.boundingRect(contour))
-						# Draw the detected rectangle on the image
-						cv_image = cv2.drawContours(cv_image, [approx], -1, (0, 255, 0), 3)
+						
 
 			# Process detected faces
 			for bbox in detected_faces:
@@ -178,15 +184,6 @@ class detect_faces(Node):
 					
 				if (all(not_drawn_image[bottom_border_y, bottom_border_x_min] < 90) and all(not_drawn_image[bottom_border_y, bottom_border_x_max] < 90)):
 					is_painting = True
-					if self.detectMonaLisas:
-						self.mona_lisas.append((cx, cy))
-						print("Mona Lisa detected!")
-						print(self.center)
-						if self.center:
-							print(f"Pixels in image: {pixels_in_image}")
-							self.move_robot_to_center_the_image(offset_x, offset_y, pixels_in_image)
-						self.readyToDetect = False
-					continue
 
 				# Check if the face is within a detected rectangle
 				if self.center: ### samo ko self center ko se centrira ker je drugače preveč false positive
@@ -194,11 +191,6 @@ class detect_faces(Node):
 						x, y, w, h = rect
 						if x <= cx <= x + w and y <= cy <= y + h:
 							is_painting = True
-							if self.detectMonaLisas:
-								self.mona_lisas.append((cx, cy))
-								self.readyToDetect = False
-								if self.center:
-									self.move_robot_to_center_the_image(offset_x, offset_y, pixels_in_image)
 							break
 				
 
@@ -210,6 +202,14 @@ class detect_faces(Node):
 					cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
 					cv_image = cv2.circle(cv_image, (cx, cy), 5, self.detection_color, -1)
 					self.faces.append((cx, cy))
+
+				if self.detectMonaLisas and is_painting and 90 < cx < 180:
+					cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 3)
+					cv_image = cv2.circle(cv_image, (cx, cy), 5, (0, 255, 0), -1)
+					self.mona_lisas.append((cx, cy))
+				
+					if self.center:
+						self.move_robot_to_center_the_image(offset_x, offset_y, pixels_in_image)
 
 			cv2.imshow("image", cv_image)
 			key = cv2.waitKey(1)
@@ -238,7 +238,7 @@ class detect_faces(Node):
 				print("Close enough!")
 				self.centered_lisa_pub.publish(Bool(data=True))
 				self.center = False
-				# tole na false yato k se bo vrjetno izvaju anomaly detection
+				# tole na false zato k se bo vrjetno izvaju anomaly detection
 				self.detectMonaLisas = False
 				self.is_at_the_angle = False
 				self.close_enough = False
@@ -298,6 +298,8 @@ class detect_faces(Node):
 				marker.pose.position.y = float(d[1])
 				marker.pose.position.z = float(d[2])
 
+				
+
 				self.marker_pub.publish(marker)
 		else:
 			for x,y in self.mona_lisas:
@@ -333,6 +335,8 @@ class detect_faces(Node):
 				marker.pose.position.x = float(d[0])
 				marker.pose.position.y = float(d[1])
 				marker.pose.position.z = float(d[2])
+
+				print("PUBLISHING", d[0], d[1], d[2])
 
 				self.mona_lisa_pub.publish(marker)
 
