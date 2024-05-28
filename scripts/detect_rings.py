@@ -367,6 +367,10 @@ class RingDetector(Node):
             a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
             a = a.reshape((height,width,3))
 
+            # check if the ring is in the image
+            if x >= 320 or y >= 240:
+                continue
+
             # read center coordinates
             d = a[y,x,:]
             if float(d[0]) == float('inf') and float(d[1]) == float('inf') and float(d[2]) == float('inf'):
