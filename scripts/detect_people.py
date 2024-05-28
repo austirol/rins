@@ -138,8 +138,8 @@ class detect_faces(Node):
 
 		# self.no_image = 3888
 
-		# na false
 		self.detectMonaLisas = True
+		# false
 		self.checkForAnomalys = False
 		self.mona_lisas = []
 
@@ -256,7 +256,7 @@ class detect_faces(Node):
 						msgAn.data = False
 						#out_mask_cv = cv2.resize(out_mask_cv, dsize=(image_lisa.shape[1], image_lisa.shape[0]))
 						cv2.imshow("mask", out_mask_cv)
-						cv2.waitKey(0)
+						
 
 					self.anomaly_result_pub.publish(msgAn)
 					
