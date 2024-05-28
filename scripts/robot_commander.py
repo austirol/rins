@@ -735,6 +735,8 @@ def approach_mona_lisa(rc):
 
             if not rc.is_not_anomaly:
                 rc.get_logger().info("Anomaly detected")
+                rc.engine.say("Fake image detected")
+                rc.engine.runAndWait()
             else:
                 rc.engine.say("Mona lisa found")
                 rc.engine.runAndWait()

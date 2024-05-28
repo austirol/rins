@@ -8,6 +8,8 @@ from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs_py import point_cloud2 as pc2
 from std_msgs.msg import Bool
 
+import matplotlib.pyplot as plt
+
 from geometry_msgs.msg import Twist
 
 from visualization_msgs.msg import Marker, MarkerArray
@@ -225,9 +227,6 @@ class detect_faces(Node):
 				if (all(not_drawn_image[bottom_border_y, bottom_border_x_min] < 90) and all(not_drawn_image[bottom_border_y, bottom_border_x_max] < 90)):
 					is_painting = True
 
-				# if self.center:
-				# 	self.move_robot_to_center_the_image(offset_x, offset_y)
-
 				if not is_painting:
 					# Draw rectangle and center of bounding box
 					cv_image = cv2.rectangle(cv_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), self.detection_color, 3)
@@ -244,8 +243,8 @@ class detect_faces(Node):
 
 
 				if self.checkForAnomalys and is_painting and pixels_in_image > 20000:
-					un_im = not_drawn_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
-					prediction, _, image_score = inference(un_im, self.model_anom, self.model_anom_seg)
+					image_lisa = not_drawn_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
+					prediction, out_mask_cv, image_score = inference(image_lisa, self.model_anom, self.model_anom_seg)
 					self.get_logger().info(f"Prediction: {prediction}, Image score: {image_score}")
 					self.readyToDetect = False
 					self.center = False
@@ -255,6 +254,10 @@ class detect_faces(Node):
 						msgAn.data = True
 					else:
 						msgAn.data = False
+						#out_mask_cv = cv2.resize(out_mask_cv, dsize=(image_lisa.shape[1], image_lisa.shape[0]))
+						cv2.imshow("mask", out_mask_cv)
+						cv2.waitKey(0)
+
 					self.anomaly_result_pub.publish(msgAn)
 					
 
