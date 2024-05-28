@@ -242,7 +242,7 @@ class detect_faces(Node):
 						self.move_robot_to_center_the_image(pixels_in_image, x_shape, y_shape)
 
 
-				if self.checkForAnomalys and is_painting and pixels_in_image > 20000:
+				if self.checkForAnomalys and is_painting and pixels_in_image > 25000 and x_shape > 120 and y_shape > 80:
 					image_lisa = not_drawn_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
 					prediction, out_mask_cv, image_score = inference(image_lisa, self.model_anom, self.model_anom_seg)
 					self.get_logger().info(f"Prediction: {prediction}, Image score: {image_score}")
