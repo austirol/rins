@@ -665,7 +665,7 @@ def approach_face(rc):
 
 
 def approach_mona_lisa(rc):
-    if not rc.detectLisa:
+    if not rc.detectLisa and rc.the_right_lisa:
         return
     
     for j, flag in enumerate(rc.mona_flag):
@@ -723,9 +723,12 @@ def approach_mona_lisa(rc):
             if not rc.is_not_anomaly:
                 rc.get_logger().info("Anomaly detected")
             else:
-                rc.get_logger().info("Text to speech!")
-                rc.engine.say("This is the Mona Lisa photo")
+                rc.engine.say("Mona lisa found")
                 rc.engine.runAndWait()
+                msg = String()
+                msg.data = "point"
+                rc.top_camera_pub.publish(msg)
+
                 rc.the_right_lisa = True
 
             rc.got_anomaly_result = False
@@ -919,9 +922,9 @@ def main(args=None):
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
                 if not rc.is_docked:
-                    rc.get_logger().info("Waiting for the task to complete... LOL")
-                    approach_face(rc)
-                    approach_ring(rc, rc.the_right_color)
+                    # rc.get_logger().info("Waiting for the task to complete... LOL")
+                    # approach_face(rc)
+                    # approach_ring(rc, rc.the_right_color)
                     approach_mona_lisa(rc)
                     time.sleep(0.1)
                 else:

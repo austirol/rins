@@ -142,8 +142,8 @@ class detect_faces(Node):
 		self.mona_lisas = []
 
 		## TO DVOJE DEJ NA FALSE - ZA POTREBE ROBBOT KOMANDERJA KASNEJE
-		self.readyToDetect = True
-		self.center = True
+		self.readyToDetect = False
+		self.center = False
 		
 		self.angle_tolerance = 5
 		self.min_pixels_in_image = 25000

@@ -47,6 +47,7 @@ class ArmMoverAction(Node):
                           'look_for_qr':[0.,0.,0.5,2.2],
                           'garage':[0.,-0.45,2.8,-0.8],
                           'up': [0.,0.,0.,1.5],
+                          'point': [0.,0.2,1.5,0.0],
                           'manual':None}
 
         self.get_logger().info(f"Initialized the Arm Mover node! Waiting for commands...")
