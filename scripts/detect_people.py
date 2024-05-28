@@ -10,7 +10,7 @@ from std_msgs.msg import Bool
 
 from geometry_msgs.msg import Twist
 
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -52,8 +52,8 @@ class detect_faces(Node):
 		self.when_to_detect_lisas_sub = self.create_subscription(Bool, "/detect_mona_lisas", self.detect_lisas, 1)
 		self.when_to_check_anomalys_sub = self.create_subscription(Bool, "/check_for_anomalys", self.when_to_anomalys_callback, 1)
 
-		self.marker_pub = self.create_publisher(Marker, marker_topic, QoSReliabilityPolicy.BEST_EFFORT)
-		self.mona_lisa_pub = self.create_publisher(Marker, "/mona_lisa", QoSReliabilityPolicy.BEST_EFFORT)
+		self.marker_pub = self.create_publisher(MarkerArray, marker_topic, QoSReliabilityPolicy.BEST_EFFORT)
+		self.mona_lisa_pub = self.create_publisher(MarkerArray, "/mona_lisa", QoSReliabilityPolicy.BEST_EFFORT)
 		self.centered_lisa_pub = self.create_publisher(Bool, "/centered_lisa", 1)
 		self.do_face_again_pub = self.create_publisher(Bool, "/when_to_detect_faces", 1)
 		self.anomaly_result_pub = self.create_publisher(Bool, "/anomaly_result", 1)
@@ -142,13 +142,13 @@ class detect_faces(Node):
 		self.mona_lisas = []
 
 		## TO DVOJE DEJ NA FALSE - ZA POTREBE ROBBOT KOMANDERJA KASNEJE
-		self.readyToDetect = False
-		self.center = False
+		self.readyToDetect = True
+		self.center = True
 		
 		self.angle_tolerance = 5
-		self.min_pixels_in_image = 20000
-		self.is_at_the_angle = False
-		self.close_enough = False
+		self.min_pixels_in_image = 25000
+		self.min_x = 102
+		self.min_y = 80
 
 		self.get_logger().info(f"Node has been initialized! Will publish face markers to {marker_topic}.")
 
@@ -204,15 +204,12 @@ class detect_faces(Node):
 				bottom_border_y = int(y_max.item())
 				bottom_border_x_min = int(x_min.item())
 				bottom_border_x_max = int(x_max.item())
-
-				# za centriranje lise
-				offset_x = cx - cv_image.shape[1] // 2
-				offset_y = cy - cv_image.shape[0] // 2
 				
 				is_painting = False
 
 				cv_image_cutout = cv_image[int(bbox[1]):int(bbox[3]),int(bbox[0]):int(bbox[2])]
 				pixels_in_image = cv_image_cutout.size
+				x_shape , y_shape, _= cv_image_cutout.shape
 				img_mean = cv_image_cutout.mean(axis=(0,1))
 				#self.get_logger().info(f"{img_mean}\n")
 				pred = self.classifier.predict([img_mean])
@@ -243,7 +240,7 @@ class detect_faces(Node):
 					self.mona_lisas.append((cx, cy))
 				
 					if self.center:
-						self.move_robot_to_center_the_image(offset_x, offset_y, pixels_in_image)
+						self.move_robot_to_center_the_image(pixels_in_image, x_shape, y_shape)
 
 
 				if self.checkForAnomalys and is_painting and pixels_in_image > 20000:
@@ -271,37 +268,27 @@ class detect_faces(Node):
 		except CvBridgeError as e:
 			print(e)
 
-	def move_robot_to_center_the_image(self, offset_x, offset_y, pixels_in_image):
-		print(f"Offset x: {offset_x}, Offset y: {offset_y}")
-		if not self.is_at_the_angle:
-			if offset_x > self.angle_tolerance:
-				self.move_robot(0, -1)
-			elif offset_x < -self.angle_tolerance:
-				self.move_robot(0, 1)
-			else:
-				self.is_at_the_angle = True
 
-		if self.is_at_the_angle and not self.close_enough:
-			if pixels_in_image < self.min_pixels_in_image:
-				self.move_robot(-1, 0)
-			else:
-				self.close_enough = True
-				print("Close enough!")
-				self.centered_lisa_pub.publish(Bool(data=True))
-				self.center = False
-				# tole na false zato k se bo vrjetno izvaju anomaly detection
-				self.detectMonaLisas = False
-				self.is_at_the_angle = False
-				self.close_enough = False
+	def move_robot_to_center_the_image(self, pixels_in_image, x_shape, y_shape):
+		if pixels_in_image < self.min_pixels_in_image and x_shape < self.min_x and y_shape < self.min_y:
+			twist = Twist()
+			twist.linear.x = 0.2
+			twist.angular.z = 0.0
+			self.cmd_vel_pub.publish(twist)
+			self.do_face_again_pub.publish((Bool(data=True)))
+		else:
+			self.centered_lisa_pub.publish((Bool(data=True)))
+			print(pixels_in_image, x_shape, y_shape)
+			self.center = False
 
-		
-	def move_robot(self, offset_y, offset_x):
-		twist = Twist()
-		twist.linear.x = 0.1
-		twist.angular.z = 0.8 * offset_x
-		self.get_logger().info(f"Moving the robot. Offset x: {offset_x}, Offset y: {offset_y}")
-		self.cmd_vel_pub.publish(twist)
-		self.do_face_again_pub.publish(Bool(data=True))
+	def calculate_normal(self, point_x, point_y, point_z):
+		lineAB = point_y - point_x
+		lineAC = point_z - point_x
+
+		normal = np.cross(lineAB, lineAC)
+		normal = normal / np.linalg.norm(normal)
+
+		return normal
 		
 
 	def pointcloud_callback(self, data):
@@ -322,14 +309,37 @@ class detect_faces(Node):
 				# read center coordinates
 				d = a[y,x,:]
 
+				radius = 10
+				if x-radius < 0 or x+radius >= 320 or y-radius < 0 or y+radius >= 240:
+					continue
+
+				# # point 1 (left bottom corner)
+				point1 = a[y+radius,x-radius,:]
+				# # point 2 (right bottom corner)
+				point2 = a[y+radius,x+radius,:]
+				# # point 3 (center top)
+				point3 = a[y-radius,x,:]
+
+				if np.isinf(point1).any() or np.isinf(point2).any() or np.isinf(point3).any():
+					continue
+
 				# create marker
+
+				marker_array = MarkerArray()
 				marker = Marker()
+				marker_normal = Marker()
 
 				marker.header.frame_id = "/base_link"
 				marker.header.stamp = data.header.stamp
 
+				marker_normal.header.frame_id = "/base_link"
+				marker_normal.header.stamp = data.header.stamp
+
 				marker.type = 2
 				marker.id = 0
+
+				marker_normal.type = 0
+				marker_normal.id = 1
 
 				# Set the scale of the marker
 				scale = 0.25
@@ -337,20 +347,47 @@ class detect_faces(Node):
 				marker.scale.y = scale
 				marker.scale.z = scale
 
+				# Set the scale of the marker
+				marker_normal.scale.x = scale
+				marker_normal.scale.y = scale
+				marker_normal.scale.z = scale
+
 				# Set the color
 				marker.color.r = 1.0
 				marker.color.g = 1.0
 				marker.color.b = 1.0
 				marker.color.a = 1.0
 
+				# Set the color
+				marker_normal.color.r = 1.0
+				marker_normal.color.g = 0.0
+				marker_normal.color.b = 1.0
+				marker_normal.color.a = 1.0
+
+				# use those three points to calculate the normal
+				# if points are nan, skip
+				if np.isnan(point1).any() or np.isnan(point2).any() or np.isnan(point3).any():
+					continue
+
+				normal = self.calculate_normal(point1, point2, point3)
+
+				# points on the normal
+				point_normal = d + 0.5 * normal
+				
 				# Set the pose of the marker
 				marker.pose.position.x = float(d[0])
 				marker.pose.position.y = float(d[1])
 				marker.pose.position.z = float(d[2])
 
-				
+				# Set the pose of the marker
+				marker_normal.pose.position.x = float(point_normal[0])
+				marker_normal.pose.position.y = float(point_normal[1])
+				marker_normal.pose.position.z = float(point_normal[2])
 
-				self.marker_pub.publish(marker)
+				marker_array.markers.append(marker)
+				marker_array.markers.append(marker_normal)
+
+				self.marker_pub.publish(marker_array)
 		else:
 			for x,y in self.mona_lisas:
 				# get 3-channel representation of the poitn cloud in numpy format
@@ -360,14 +397,36 @@ class detect_faces(Node):
 				# read center coordinates
 				d = a[y,x,:]
 
+				radius = 10
+				if x-radius < 0 or x+radius >= 320 or y-radius < 0 or y+radius >= 240:
+					continue
+
+				# # point 1 (left bottom corner)
+				point1 = a[y+radius,x-radius,:]
+				# # point 2 (right bottom corner)
+				point2 = a[y+radius,x+radius,:]
+				# # point 3 (center top)
+				point3 = a[y-radius,x,:]
+
+				if np.isinf(point1).any() or np.isinf(point2).any() or np.isinf(point3).any():
+					continue
+
+
 				# create marker
 				marker = Marker()
-
+				marker_normal = Marker()
+				
 				marker.header.frame_id = "/base_link"
 				marker.header.stamp = data.header.stamp
 
+				marker_normal.header.frame_id = "/base_link"
+				marker_normal.header.stamp = data.header.stamp
+
 				marker.type = 2
 				marker.id = 1
+
+				marker_normal.type = 0
+				marker_normal.id = 2
 
 				# Set the scale of the marker
 				scale = 0.25
@@ -375,18 +434,48 @@ class detect_faces(Node):
 				marker.scale.y = scale
 				marker.scale.z = scale
 
+				# Set the scale of the marker
+				marker_normal.scale.x = scale
+				marker_normal.scale.y = scale
+				marker_normal.scale.z = scale
+
 				# Set the color
 				marker.color.r = 1.0
 				marker.color.g = 0.0
 				marker.color.b = 0.0
 				marker.color.a = 1.0
 
+				# Set the color
+				marker_normal.color.r = 1.0
+				marker_normal.color.g = 0.0
+				marker_normal.color.b = 1.0
+				marker_normal.color.a = 1.0
+
 				# Set the pose of the marker
 				marker.pose.position.x = float(d[0])
 				marker.pose.position.y = float(d[1])
 				marker.pose.position.z = float(d[2])
 
-				self.mona_lisa_pub.publish(marker)
+				# use those three points to calculate the normal
+				# if points are nan, skip
+				if np.isnan(point1).any() or np.isnan(point2).any() or np.isnan(point3).any():
+					continue
+
+				normal = self.calculate_normal(point1, point2, point3)
+
+				# points on the normal
+				point_normal = d + 0.6 * normal
+
+				# Set the pose of the marker
+				marker_normal.pose.position.x = float(point_normal[0])
+				marker_normal.pose.position.y = float(point_normal[1])
+				marker_normal.pose.position.z = float(point_normal[2])
+
+				marker_array = MarkerArray()
+				marker_array.markers.append(marker)
+				marker_array.markers.append(marker_normal)
+
+				self.mona_lisa_pub.publish(marker_array)
 
 def main():
 	print('Face detection node starting.')

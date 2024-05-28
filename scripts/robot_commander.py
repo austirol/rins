@@ -15,7 +15,7 @@
 
 
 import asyncio
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 from enum import Enum
 import time
 import pyttsx3
@@ -107,10 +107,10 @@ class RobotCommander(Node):
         self.when_to_check_for_anomaly = self.create_publisher(Bool, '/check_for_anomalys', 1)
         
         # marker position listener
-        self.marker_pos_sub = self.create_subscription(Marker, "/marker_pos", self.face_handler, 1)
+        self.marker_pos_sub = self.create_subscription(MarkerArray, "/marker_pos", self.face_handler, 1)
         self.ring_marker_sub = self.create_subscription(Marker, "/marker_pos_rings", self.ring_handler, 1)
         self.cylinder_sub = self.create_subscription(Marker, "/detected_cylinder", self.cylinder_handler, 1)
-        self.mona_lisa_sub = self.create_subscription(Marker, "/marker_lisa", self.face_handler, 1)
+        self.mona_lisa_sub = self.create_subscription(MarkerArray, "/marker_lisa", self.face_handler, 1)
 
         self.ended_qr_sub = self.create_subscription(Bool, '/qr_detection_ended', self.qr_code_hanlder, 1)
         self.done_parking_sub = self.create_subscription(Bool, '/done_parking', self.done_parking_callback, 1)
@@ -130,6 +130,7 @@ class RobotCommander(Node):
         # pictures
         self.face_pos = []
         self.face_flag = []
+        self.face_normals = []
         self.detect_faces = True
 
         # rings
@@ -150,11 +151,12 @@ class RobotCommander(Node):
         self.detected_colors = []
 
         self.mona_lisas = []
+        self.mona_normals = []
         self.mona_flag = []
 
         self.detectLisa = False
         self.centeredMonaLisa = True
-        self.is_anomaly = False
+        self.is_not_anomaly = True
         self.got_anomaly_result = False
         self.the_right_lisa = False
 
@@ -169,25 +171,32 @@ class RobotCommander(Node):
         return
     
     def anomaly_hanlder(self, msg):
-        self.is_anomaly = msg.data
+        self.is_not_anomaly = msg.data
         self.got_anomaly_result = True
-        print("Anomaly detected: ", self.is_anomaly)
+        print("Anomaly detected: ", self.is_not_anomaly)
         return
 
     def face_handler(self, msg):
-        x = msg.pose.position.x
-        y = msg.pose.position.y
-        z = msg.pose.position.z
+        msg_face = msg.markers[0]
+        msg_normal = msg.markers[1]
+        x = msg_face.pose.position.x
+        y = msg_face.pose.position.y
+        z = msg_face.pose.position.z
         # index = len(self.face_pos)
+
+        poiint_normal = {"x":msg_normal.pose.position.x, "y":msg_normal.pose.position.y, "z":msg_normal.pose.position.z}
 
         point = {"x":x, "y":y, "z":z}
 
         if self.detectLisa:
             self.mona_lisas.append(point)
             self.mona_flag.append(False)
+            self.mona_normals.append(poiint_normal)
+            print("HEREEEE")
         else:
             self.face_pos.append(point)
             self.face_flag.append(False)
+            self.face_normals.append(poiint_normal)
 
         return
     
@@ -594,39 +603,30 @@ def approach_face(rc):
         if not flag and not rc.is_docked and rc.detect_faces:
             #shrani trenutni goal
             goal_save = rc.goal_now
-            #shrani trenutno pozicijo
-            pos_save = rc.current_pose
             
             #skenslaj goal
             rc.cancelTask()
             time.sleep(1)
             
-            # pojdi do face
-            current_x = float(pos_save.pose.position.x)
-            current_y = float(pos_save.pose.position.y)
-            goal_x = float(rc.face_pos[j]["x"])
-            goal_y = float(rc.face_pos[j]["y"])
+            # pojdi do normale
+            goal_x = float(rc.face_normals[j]["x"])
+            goal_y = float(rc.face_normals[j]["y"])
 
-            current_pose_vector = np.array([current_x, current_y])
-            goal_pose_vector = np.array([goal_x, goal_y])
-            direction_vector = goal_pose_vector - current_pose_vector
-            normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+            face_pos_x = float(rc.face_pos[j]["x"])
+            face_pos_y = float(rc.face_pos[j]["y"])
 
-            
-            new_goal_pose = goal_pose_vector - 0.3 * normalized_direction
-
-            goal_x_new = float(new_goal_pose[0])
-            goal_y_new = float(new_goal_pose[1])
-
-            razlika_y = goal_y - goal_y_new
-            razlika_x = goal_x - goal_x_new
+            # turn to face
+            razlika_y = face_pos_y - goal_y
+            razlika_x = face_pos_x - goal_x
             kot = math.atan2(razlika_y, razlika_x)
-            goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new, kot)
+
+            goal_pose = generate_goal_message(rc, goal_x, goal_y, kot)
 
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
                 rc.get_logger().info("Grem do obraza LOL2")
                 time.sleep(1)
+
 
             #text to speach
             rc.get_logger().info("Text to speech!")
@@ -680,25 +680,18 @@ def approach_mona_lisa(rc):
             time.sleep(1)
             
             # pojdi do face
-            current_x = float(pos_save.pose.position.x)
-            current_y = float(pos_save.pose.position.y)
-            goal_x = float(rc.mona_lisas[j]["x"])
-            goal_y = float(rc.mona_lisas[j]["y"])
+            goal_x = float(rc.mona_normals[j]["x"])
+            goal_y = float(rc.mona_normals[j]["y"])
 
-            current_pose_vector = np.array([current_x, current_y])
-            goal_pose_vector = np.array([goal_x, goal_y])
-            direction_vector = goal_pose_vector - current_pose_vector
-            normalized_direction = direction_vector / np.linalg.norm(direction_vector)
+            face_pos_x = float(rc.mona_lisas[j]["x"])
+            face_pos_y = float(rc.mona_lisas[j]["y"])
 
-            new_goal_pose = goal_pose_vector - 0.5 * normalized_direction
+            # turn to face
+            razlika_y = face_pos_y - goal_y
+            razlika_x = face_pos_x - goal_x
+            kot = math.atan2(razlika_y, razlika_x)            
 
-            goal_x_new = float(new_goal_pose[0])
-            goal_y_new = float(new_goal_pose[1])
-
-            razlika_y = goal_y - goal_y_new
-            razlika_x = goal_x - goal_x_new
-            kot = math.atan2(razlika_y, razlika_x)
-            goal_pose = generate_goal_message(rc, goal_x_new, goal_y_new, kot)
+            goal_pose = generate_goal_message(rc, goal_x, goal_y, kot)
 
             rc.goToPose(goal_pose)
             while not rc.isTaskComplete():
@@ -727,7 +720,7 @@ def approach_mona_lisa(rc):
             while not rc.got_anomaly_result:
                 rclpy.spin_once(rc, timeout_sec=0.5)
 
-            if rc.is_anomaly:
+            if not rc.is_not_anomaly:
                 rc.get_logger().info("Anomaly detected")
             else:
                 rc.get_logger().info("Text to speech!")
@@ -738,10 +731,24 @@ def approach_mona_lisa(rc):
             rc.got_anomaly_result = False
 
 
+            if not rc.the_right_lisa:
+                #restoraj goal
+                rc.goToPose(goal_save)
+                while not rc.isTaskComplete():
+                    rc.get_logger().info("Waiting for the task to complete... LOL3")
+                    # tuki approach face odkomentiraš da bi ti takoj šel do naslednjega obraza
+                    approach_mona_lisa(rc)
+                   
+                    # rc.cleaner()
+                    time.sleep(1)
+
+
 def approach_ring(rc, color):
     ### če ne vem barve še ne grem alpa če še ne vem kje je ring
     if (color == "" or rc.done or color not in rc.rings_and_positons):
         return
+    
+    goal_save = rc.goal_now
 
     rc.cancelTask()
     time.sleep(1)
@@ -800,9 +807,9 @@ def approach_ring(rc, color):
         time.sleep(0.1)
         rclpy.spin_once(rc, timeout_sec=0.5)
 
-    approach_cylindr(rc)
+    approach_cylindr(rc, goal_save)
 
-def approach_cylindr(rc):
+def approach_cylindr(rc, goal_save):
     for j, flag in enumerate(rc.cylinder_flag):
         if not flag and not rc.is_docked:
             #shrani trenutno pozicijo
@@ -858,6 +865,12 @@ def approach_cylindr(rc):
             msg = Bool()
             msg.data = True
             rc.when_to_detect_lisas_pub.publish(msg)
+
+            rc.goToPose(goal_save)
+            while not rc.isTaskComplete():
+                rc.get_logger().info("Waiting for the task to complete... LOL3")
+                time.sleep(1)
+
 
 def main(args=None):
     

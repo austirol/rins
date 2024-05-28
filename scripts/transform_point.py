@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 
 from geometry_msgs.msg import PointStamped
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 
 import tf2_geometry_msgs as tfg
 from tf2_ros import TransformException
@@ -40,16 +40,16 @@ class TranformPoints(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # For publishing the markers
-        self.marker_pub = self.create_publisher(Marker, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
+        self.marker_pub = self.create_publisher(MarkerArray, "/marker_pos", QoSReliabilityPolicy.BEST_EFFORT)
         self.marker_pub2 = self.create_publisher(Marker, "/marker_pos_rings", QoSReliabilityPolicy.BEST_EFFORT)
-        self.mona_lisa_pub = self.create_publisher(Marker, "/marker_lisa", QoSReliabilityPolicy.BEST_EFFORT)
+        self.mona_lisa_pub = self.create_publisher(MarkerArray, "/marker_lisa", QoSReliabilityPolicy.BEST_EFFORT)
 
         self.is_it_the_same_ring = self.create_publisher(Bool, "/is_it_the_same_ring", 1)
         # For subscribing to the markers
 
-        self.marker_sub = self.create_subscription(Marker, "/people_marker", self.timer_callback, 1)
+        self.marker_sub = self.create_subscription(MarkerArray, "/people_marker", self.timer_callback, 1)
         self.marker_sub_ring = self.create_subscription(Marker, "/ring_marker", self.publish_ring_marker, 1)
-        self.mona_list_sub = self.create_subscription(Marker, "/mona_lisa", self.mona_lisa_callback, 1)
+        self.mona_list_sub = self.create_subscription(MarkerArray, "/mona_lisa", self.mona_lisa_callback, 1)
 
         # Create a timer, to do the main work.
         # self.timer = self.create_timer(timer_period, self.timer_callback)
@@ -63,13 +63,24 @@ class TranformPoints(Node):
         # "Stamped" means that the message type contains a Header
         point_in_robot_frame = PointStamped()
         point_in_robot_frame.header.frame_id = "/base_link"
-        point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
+        point_in_robot_frame.header.stamp = self.get_clock().now().to_msg() 
 
-        point_in_robot_frame.point.x = msg.pose.position.x
-        point_in_robot_frame.point.y = msg.pose.position.y
-        point_in_robot_frame.point.z = msg.pose.position.z 
+        msg_face = msg.markers[0]
+        msg_normal = msg.markers[1]
 
-        orientation = msg.pose.orientation
+        point_in_robot_frame.point.x = msg_face.pose.position.x
+        point_in_robot_frame.point.y = msg_face.pose.position.y
+        point_in_robot_frame.point.z = msg_face.pose.position.z 
+
+        point_normal = PointStamped()
+        point_normal.header.frame_id = "/base_link"
+        point_normal.header.stamp = self.get_clock().now().to_msg()
+
+        point_normal.point.x = msg_normal.pose.position.x
+        point_normal.point.y = msg_normal.pose.position.y
+        point_normal.point.z = msg_normal.pose.position.z
+
+        marker_array = MarkerArray()
 
         # Now we look up the transform between the base_link and the map frames
         # and then we apply it to our PointStamped
@@ -86,12 +97,17 @@ class TranformPoints(Node):
             point_in_map_frame = tfg.do_transform_point(point_in_robot_frame, trans)
             self.get_logger().info(f"We transformed a PointStamped! JUHEEEJ: {point_in_map_frame}")
 
+            point_normal_map = tfg.do_transform_point(point_normal, trans)
+
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
             marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
+            marker_normal = self.create_marker(point_normal_map, self.marker_id+1)
 
             # # publishamo samo v primeru ko je marker nov torej ni v arrayu self.face_pos ali bližini 0.5
             if len(self.face_pos) == 0:
-                self.marker_pub.publish(marker_in_map_frame)
+                marker_array.markers.append(marker_in_map_frame)
+                marker_array.markers.append(marker_normal)
+                self.marker_pub.publish(marker_array)
                 self.face_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                 # log
                 self.get_logger().info(f"Face detected at: {point_in_map_frame.point}")
@@ -104,7 +120,9 @@ class TranformPoints(Node):
                         self.get_logger().info(f"ISTI")
                         break
                 else:
-                    self.marker_pub.publish(marker_in_map_frame)
+                    marker_array.markers.append(marker_in_map_frame)
+                    marker_array.markers.append(marker_normal)
+                    self.marker_pub.publish(marker_array)
                     self.face_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                     # log
                     self.get_logger().info(f"Face detected at: {point_in_map_frame.point}")
@@ -121,11 +139,22 @@ class TranformPoints(Node):
         point_in_robot_frame.header.frame_id = "/base_link"
         point_in_robot_frame.header.stamp = self.get_clock().now().to_msg()
 
-        point_in_robot_frame.point.x = msg.pose.position.x
-        point_in_robot_frame.point.y = msg.pose.position.y
-        point_in_robot_frame.point.z = msg.pose.position.z 
+        msg_face = msg.markers[0]
+        msg_normal = msg.markers[1]
 
-        orientation = msg.pose.orientation
+        point_in_robot_frame.point.x = msg_face.pose.position.x
+        point_in_robot_frame.point.y = msg_face.pose.position.y
+        point_in_robot_frame.point.z = msg_face.pose.position.z 
+
+        point_normal = PointStamped()
+        point_normal.header.frame_id = "/base_link"
+        point_normal.header.stamp = self.get_clock().now().to_msg()
+
+        point_normal.point.x = msg_normal.pose.position.x
+        point_normal.point.y = msg_normal.pose.position.y
+        point_normal.point.z = msg_normal.pose.position.z
+
+        marker_array = MarkerArray()
 
         # Now we look up the transform between the base_link and the map frames
         # and then we apply it to our PointStamped
@@ -139,16 +168,20 @@ class TranformPoints(Node):
             # Now we apply the transform to transform the point_in_robot_frame to the map frame
             # The header in the result will be copied from the Header of the transform
             point_in_map_frame = tfg.do_transform_point(point_in_robot_frame, trans)
+            point_normal_map = tfg.do_transform_point(point_normal, trans)
 
             # # If the transformation exists, create a marker from the point, in order to visualize it in Rviz
             marker_in_map_frame = self.create_marker(point_in_map_frame, self.marker_id)
+            marker_normal = self.create_marker(point_normal_map, self.marker_id+1)
 
             if point_in_map_frame.point.x != point_in_map_frame.point.x:
                 return
 
             # # publishamo samo v primeru ko je marker nov torej ni v arrayu self.face_pos ali bližini 0.5
             if len(self.mona_pos) == 0:
-                self.mona_lisa_pub.publish(marker_in_map_frame)
+                marker_array.markers.append(marker_in_map_frame)
+                marker_array.markers.append(marker_normal)
+                self.mona_lisa_pub.publish(marker_array)
                 self.mona_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                 # log
                 self.get_logger().info(f"MONA detected at: {point_in_map_frame.point}")
@@ -161,7 +194,9 @@ class TranformPoints(Node):
                         self.get_logger().info(f"ISTI")
                         break
                 else:
-                    self.mona_lisa_pub.publish(marker_in_map_frame)
+                    marker_array.markers.append(marker_in_map_frame)
+                    marker_array.markers.append(marker_normal)
+                    self.mona_lisa_pub.publish(marker_array)
                     self.mona_pos.append({"x":point_in_map_frame.point.x, "y":point_in_map_frame.point.y, "z":point_in_map_frame.point.z})
                     # log
                     self.get_logger().info(f"MONA detected at: {point_in_map_frame.point}")

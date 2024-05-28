@@ -9,6 +9,7 @@ import tf2_ros
 import time
 from math import sqrt, cos, sin, pi
 from PIL import Image as ImagePil, ImageDraw
+import requests
 
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image, PointCloud2
@@ -47,6 +48,7 @@ class QrReader(Node):
         self.detectQR = False
         self.QR_detector = cv2.QRCodeDetector()
         cv2.namedWindow("QR CODE", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("MONA LISA", cv2.WINDOW_NORMAL)
 
     def when_to_detect_callback(self, msg):
         self.detectQR = True
@@ -79,8 +81,14 @@ class QrReader(Node):
 
             if data.startswith("https"):
                 self.image_url = data
-                print("URL: ", self.image_url)
-
+                # download the image
+                print(self.image_url)
+                resp = requests.get(self.image_url)
+                image_data = np.asarray(bytearray(resp.content), dtype="uint8")
+                image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+                print(image.shape)
+                cv2.imshow("MONA LISA", image)
+                cv2.waitKey(1)
         
         msg = Bool()
         msg.data = True
