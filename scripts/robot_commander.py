@@ -110,7 +110,7 @@ class RobotCommander(Node):
         self.marker_pos_sub = self.create_subscription(MarkerArray, "/marker_pos", self.face_handler, 1)
         self.ring_marker_sub = self.create_subscription(Marker, "/marker_pos_rings", self.ring_handler, 1)
         self.cylinder_sub = self.create_subscription(Marker, "/detected_cylinder", self.cylinder_handler, 1)
-        self.mona_lisa_sub = self.create_subscription(MarkerArray, "/marker_lisa", self.face_handler, 1)
+        self.mona_lisa_sub = self.create_subscription(MarkerArray, "/marker_lisa", self.mona_handler, 1)
 
         self.ended_qr_sub = self.create_subscription(Bool, '/qr_detection_ended', self.qr_code_hanlder, 1)
         self.done_parking_sub = self.create_subscription(Bool, '/done_parking', self.done_parking_callback, 1)
@@ -188,15 +188,28 @@ class RobotCommander(Node):
 
         point = {"x":x, "y":y, "z":z}
 
-        if self.detectLisa:
-            self.mona_lisas.append(point)
-            self.mona_flag.append(False)
-            self.mona_normals.append(poiint_normal)
-            print("HEREEEE")
-        else:
-            self.face_pos.append(point)
-            self.face_flag.append(False)
-            self.face_normals.append(poiint_normal)
+        self.face_pos.append(point)
+        self.face_flag.append(False)
+        self.face_normals.append(poiint_normal)
+
+        return
+    
+    def mona_handler(self, msg):
+        msg_mona = msg.markers[0]
+        msg_normal = msg.markers[1]
+
+        x = msg_mona.pose.position.x
+        y = msg_mona.pose.position.y
+        z = msg_mona.pose.position.z
+        # index = len(self.face_pos)
+
+        poiint_normal = {"x":msg_normal.pose.position.x, "y":msg_normal.pose.position.y, "z":msg_normal.pose.position.z}
+
+        point = {"x":x, "y":y, "z":z}
+
+        self.mona_lisas.append(point)
+        self.mona_flag.append(False)
+        self.mona_normals.append(poiint_normal)
 
         return
     
@@ -669,7 +682,7 @@ def approach_mona_lisa(rc):
         return
     
     for j, flag in enumerate(rc.mona_flag):
-        if not flag and not rc.is_docked and rc.detectLisa:
+        if not flag and not rc.is_docked and rc.detectLisa and not rc.the_right_lisa:
             #shrani trenutni goal
             goal_save = rc.goal_now
             #shrani trenutno pozicijo
@@ -923,8 +936,8 @@ def main(args=None):
             while not rc.isTaskComplete():
                 if not rc.is_docked:
                     # rc.get_logger().info("Waiting for the task to complete... LOL")
-                    # approach_face(rc)
-                    # approach_ring(rc, rc.the_right_color)
+                    approach_face(rc)
+                    approach_ring(rc, rc.the_right_color)
                     approach_mona_lisa(rc)
                     time.sleep(0.1)
                 else:

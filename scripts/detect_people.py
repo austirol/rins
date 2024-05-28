@@ -137,7 +137,7 @@ class detect_faces(Node):
 		# self.no_image = 3888
 
 		# na false
-		self.detectMonaLisas = False
+		self.detectMonaLisas = True
 		self.checkForAnomalys = False
 		self.mona_lisas = []
 
@@ -147,7 +147,7 @@ class detect_faces(Node):
 		
 		self.angle_tolerance = 5
 		self.min_pixels_in_image = 25000
-		self.min_x = 102
+		self.min_x = 120
 		self.min_y = 80
 
 		self.get_logger().info(f"Node has been initialized! Will publish face markers to {marker_topic}.")
@@ -299,183 +299,183 @@ class detect_faces(Node):
 		row_step = data.row_step		
 
 		# iterate over face coordinates
-		if not self.detectMonaLisas:
-			for x,y in self.faces:
+		
+		for x,y in self.faces:
+		
+			# get 3-channel representation of the poitn cloud in numpy format
+			a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
+			a = a.reshape((height,width,3))
+
+			# read center coordinates
+			d = a[y,x,:]
+
+			radius = 10
+			if x-radius < 0 or x+radius >= 320 or y-radius < 0 or y+radius >= 240:
+				continue
+
+			# # point 1 (left bottom corner)
+			point1 = a[y+radius,x-radius,:]
+			# # point 2 (right bottom corner)
+			point2 = a[y+radius,x+radius,:]
+			# # point 3 (center top)
+			point3 = a[y-radius,x,:]
+
+			if np.isinf(point1).any() or np.isinf(point2).any() or np.isinf(point3).any():
+				continue
+
+			# create marker
+
+			marker_array = MarkerArray()
+			marker = Marker()
+			marker_normal = Marker()
+
+			marker.header.frame_id = "/base_link"
+			marker.header.stamp = data.header.stamp
+
+			marker_normal.header.frame_id = "/base_link"
+			marker_normal.header.stamp = data.header.stamp
+
+			marker.type = 2
+			marker.id = 0
+
+			marker_normal.type = 0
+			marker_normal.id = 1
+
+			# Set the scale of the marker
+			scale = 0.25
+			marker.scale.x = scale
+			marker.scale.y = scale
+			marker.scale.z = scale
+
+			# Set the scale of the marker
+			marker_normal.scale.x = scale
+			marker_normal.scale.y = scale
+			marker_normal.scale.z = scale
+
+			# Set the color
+			marker.color.r = 1.0
+			marker.color.g = 1.0
+			marker.color.b = 1.0
+			marker.color.a = 1.0
+
+			# Set the color
+			marker_normal.color.r = 1.0
+			marker_normal.color.g = 0.0
+			marker_normal.color.b = 1.0
+			marker_normal.color.a = 1.0
+
+			# use those three points to calculate the normal
+			# if points are nan, skip
+			if np.isnan(point1).any() or np.isnan(point2).any() or np.isnan(point3).any():
+				continue
+
+			normal = self.calculate_normal(point1, point2, point3)
+
+			# points on the normal
+			point_normal = d + 0.5 * normal
 			
-				# get 3-channel representation of the poitn cloud in numpy format
-				a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
-				a = a.reshape((height,width,3))
+			# Set the pose of the marker
+			marker.pose.position.x = float(d[0])
+			marker.pose.position.y = float(d[1])
+			marker.pose.position.z = float(d[2])
 
-				# read center coordinates
-				d = a[y,x,:]
+			# Set the pose of the marker
+			marker_normal.pose.position.x = float(point_normal[0])
+			marker_normal.pose.position.y = float(point_normal[1])
+			marker_normal.pose.position.z = float(point_normal[2])
 
-				radius = 10
-				if x-radius < 0 or x+radius >= 320 or y-radius < 0 or y+radius >= 240:
-					continue
+			marker_array.markers.append(marker)
+			marker_array.markers.append(marker_normal)
 
-				# # point 1 (left bottom corner)
-				point1 = a[y+radius,x-radius,:]
-				# # point 2 (right bottom corner)
-				point2 = a[y+radius,x+radius,:]
-				# # point 3 (center top)
-				point3 = a[y-radius,x,:]
+			self.marker_pub.publish(marker_array)
 
-				if np.isinf(point1).any() or np.isinf(point2).any() or np.isinf(point3).any():
-					continue
+		for x,y in self.mona_lisas:
+			# get 3-channel representation of the poitn cloud in numpy format
+			a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
+			a = a.reshape((height,width,3))
 
-				# create marker
+			# read center coordinates
+			d = a[y,x,:]
 
-				marker_array = MarkerArray()
-				marker = Marker()
-				marker_normal = Marker()
+			radius = 10
+			if x-radius < 0 or x+radius >= 320 or y-radius < 0 or y+radius >= 240:
+				continue
 
-				marker.header.frame_id = "/base_link"
-				marker.header.stamp = data.header.stamp
+			# # point 1 (left bottom corner)
+			point1 = a[y+radius,x-radius,:]
+			# # point 2 (right bottom corner)
+			point2 = a[y+radius,x+radius,:]
+			# # point 3 (center top)
+			point3 = a[y-radius,x,:]
 
-				marker_normal.header.frame_id = "/base_link"
-				marker_normal.header.stamp = data.header.stamp
-
-				marker.type = 2
-				marker.id = 0
-
-				marker_normal.type = 0
-				marker_normal.id = 1
-
-				# Set the scale of the marker
-				scale = 0.25
-				marker.scale.x = scale
-				marker.scale.y = scale
-				marker.scale.z = scale
-
-				# Set the scale of the marker
-				marker_normal.scale.x = scale
-				marker_normal.scale.y = scale
-				marker_normal.scale.z = scale
-
-				# Set the color
-				marker.color.r = 1.0
-				marker.color.g = 1.0
-				marker.color.b = 1.0
-				marker.color.a = 1.0
-
-				# Set the color
-				marker_normal.color.r = 1.0
-				marker_normal.color.g = 0.0
-				marker_normal.color.b = 1.0
-				marker_normal.color.a = 1.0
-
-				# use those three points to calculate the normal
-				# if points are nan, skip
-				if np.isnan(point1).any() or np.isnan(point2).any() or np.isnan(point3).any():
-					continue
-
-				normal = self.calculate_normal(point1, point2, point3)
-
-				# points on the normal
-				point_normal = d + 0.5 * normal
-				
-				# Set the pose of the marker
-				marker.pose.position.x = float(d[0])
-				marker.pose.position.y = float(d[1])
-				marker.pose.position.z = float(d[2])
-
-				# Set the pose of the marker
-				marker_normal.pose.position.x = float(point_normal[0])
-				marker_normal.pose.position.y = float(point_normal[1])
-				marker_normal.pose.position.z = float(point_normal[2])
-
-				marker_array.markers.append(marker)
-				marker_array.markers.append(marker_normal)
-
-				self.marker_pub.publish(marker_array)
-		else:
-			for x,y in self.mona_lisas:
-				# get 3-channel representation of the poitn cloud in numpy format
-				a = pc2.read_points_numpy(data, field_names= ("x", "y", "z"))
-				a = a.reshape((height,width,3))
-
-				# read center coordinates
-				d = a[y,x,:]
-
-				radius = 10
-				if x-radius < 0 or x+radius >= 320 or y-radius < 0 or y+radius >= 240:
-					continue
-
-				# # point 1 (left bottom corner)
-				point1 = a[y+radius,x-radius,:]
-				# # point 2 (right bottom corner)
-				point2 = a[y+radius,x+radius,:]
-				# # point 3 (center top)
-				point3 = a[y-radius,x,:]
-
-				if np.isinf(point1).any() or np.isinf(point2).any() or np.isinf(point3).any():
-					continue
+			if np.isinf(point1).any() or np.isinf(point2).any() or np.isinf(point3).any():
+				continue
 
 
-				# create marker
-				marker = Marker()
-				marker_normal = Marker()
-				
-				marker.header.frame_id = "/base_link"
-				marker.header.stamp = data.header.stamp
+			# create marker
+			marker = Marker()
+			marker_normal = Marker()
+			
+			marker.header.frame_id = "/base_link"
+			marker.header.stamp = data.header.stamp
 
-				marker_normal.header.frame_id = "/base_link"
-				marker_normal.header.stamp = data.header.stamp
+			marker_normal.header.frame_id = "/base_link"
+			marker_normal.header.stamp = data.header.stamp
 
-				marker.type = 2
-				marker.id = 1
+			marker.type = 2
+			marker.id = 1
 
-				marker_normal.type = 0
-				marker_normal.id = 2
+			marker_normal.type = 0
+			marker_normal.id = 2
 
-				# Set the scale of the marker
-				scale = 0.25
-				marker.scale.x = scale
-				marker.scale.y = scale
-				marker.scale.z = scale
+			# Set the scale of the marker
+			scale = 0.25
+			marker.scale.x = scale
+			marker.scale.y = scale
+			marker.scale.z = scale
 
-				# Set the scale of the marker
-				marker_normal.scale.x = scale
-				marker_normal.scale.y = scale
-				marker_normal.scale.z = scale
+			# Set the scale of the marker
+			marker_normal.scale.x = scale
+			marker_normal.scale.y = scale
+			marker_normal.scale.z = scale
 
-				# Set the color
-				marker.color.r = 1.0
-				marker.color.g = 0.0
-				marker.color.b = 0.0
-				marker.color.a = 1.0
+			# Set the color
+			marker.color.r = 1.0
+			marker.color.g = 0.0
+			marker.color.b = 0.0
+			marker.color.a = 1.0
 
-				# Set the color
-				marker_normal.color.r = 1.0
-				marker_normal.color.g = 0.0
-				marker_normal.color.b = 1.0
-				marker_normal.color.a = 1.0
+			# Set the color
+			marker_normal.color.r = 1.0
+			marker_normal.color.g = 0.0
+			marker_normal.color.b = 1.0
+			marker_normal.color.a = 1.0
 
-				# Set the pose of the marker
-				marker.pose.position.x = float(d[0])
-				marker.pose.position.y = float(d[1])
-				marker.pose.position.z = float(d[2])
+			# Set the pose of the marker
+			marker.pose.position.x = float(d[0])
+			marker.pose.position.y = float(d[1])
+			marker.pose.position.z = float(d[2])
 
-				# use those three points to calculate the normal
-				# if points are nan, skip
-				if np.isnan(point1).any() or np.isnan(point2).any() or np.isnan(point3).any():
-					continue
+			# use those three points to calculate the normal
+			# if points are nan, skip
+			if np.isnan(point1).any() or np.isnan(point2).any() or np.isnan(point3).any():
+				continue
 
-				normal = self.calculate_normal(point1, point2, point3)
+			normal = self.calculate_normal(point1, point2, point3)
 
-				# points on the normal
-				point_normal = d + 0.6 * normal
+			# points on the normal
+			point_normal = d + 0.6 * normal
 
-				# Set the pose of the marker
-				marker_normal.pose.position.x = float(point_normal[0])
-				marker_normal.pose.position.y = float(point_normal[1])
-				marker_normal.pose.position.z = float(point_normal[2])
+			# Set the pose of the marker
+			marker_normal.pose.position.x = float(point_normal[0])
+			marker_normal.pose.position.y = float(point_normal[1])
+			marker_normal.pose.position.z = float(point_normal[2])
 
-				marker_array = MarkerArray()
-				marker_array.markers.append(marker)
-				marker_array.markers.append(marker_normal)
+			marker_array = MarkerArray()
+			marker_array.markers.append(marker)
+			marker_array.markers.append(marker_normal)
 
-				self.mona_lisa_pub.publish(marker_array)
+			self.mona_lisa_pub.publish(marker_array)
 
 def main():
 	print('Face detection node starting.')
@@ -486,5 +486,5 @@ def main():
 	node.destroy_node()
 	rclpy.shutdown()
 
-if __name__ == '__main__':
-	main()
+if __name__ == '__main__':	
+	main()	
