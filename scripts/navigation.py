@@ -131,7 +131,7 @@ def get_points(map, spacing=15):
     skeleton = skeletonize_map(map)
 
     start_point = find_start(skeleton, inv_point_tf(0, 0))
-    
+    # print("start", start_point, point_tf(start_point[0], start_point[1]))
     points = [start_point]
     current_point = start_point
     current_distance = 0
@@ -161,8 +161,7 @@ def get_points(map, spacing=15):
 
     out = []
     for y, x in points:
-        po = point_tf(x, y)
-        po = [po[1], po[0]]
+        po = point_tf(y, x)
         po.append(((np.random.rand(1)-0.5)*np.pi)[0])
         out.append(po)
         print(po)
@@ -178,7 +177,7 @@ def draw_path(image, points):
     mask = np.zeros_like(image)
     # print(mask.shape)
     for i in points:
-        x, y= inv_point_tf(i[0], i[1])
+        y, x= inv_point_tf(i[0], i[1])
         print(y, x)
         # x = inv_point_tf()
         # print(type(mask))
