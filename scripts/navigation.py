@@ -162,6 +162,7 @@ def get_points(map, spacing=15):
     out = []
     for y, x in points:
         po = point_tf(x, y)
+        po = [po[1], po[0]]
         po.append(((np.random.rand(1)-0.5)*np.pi)[0])
         out.append(po)
         print(po)
@@ -174,15 +175,16 @@ def draw_path(image, points):
     skeli = skeletonize_map(image)
     image = np.transpose(np.array([image, image, image]), (1, 2, 0))
     skeli = np.transpose(np.array([skeli, skeli, skeli]), (1, 2, 0)).astype(np.int8)*255
-    mask = np.zeros(skeli.shape)
-    # print(points)
+    mask = np.zeros_like(image)
+    # print(mask.shape)
     for i in points:
-        # print(i)
-        y = i[0]
-        x = i[1]
-        mask[y, x] = [1, 0, 0]
-        # plt.imshow(mask)
-        # # plt.show()
+        x, y= inv_point_tf(i[0], i[1])
+        print(y, x)
+        # x = inv_point_tf()
+        # print(type(mask))
+        mask[y, x] = np.array([1, 0, 0])
+        plt.imshow(mask)
+        # plt.show()
         # plt.show(block=False)
         # plt.pause(0.00001)
         # plt.close()
@@ -193,6 +195,7 @@ def draw_path(image, points):
     plt.show()
 
 if __name__ == "__main__":
-    path = get_points(image)
+    path = get_points(image, 16)
     print(path)
-    # draw_path(image, path)
+    print(inv_point_tf(path[0][0], path[0][1]))
+    draw_path(image[:,:], path)
