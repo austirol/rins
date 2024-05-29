@@ -6,9 +6,15 @@ import numpy as np
 import torch
 from model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
 
+
+
+def adjust_brightness(im, target):
+    current = brightness(im)
+    print(current, target)
+    return (im * (target / current)).astype(np.uint8)
+
 def transform_image(image_in, resize_shape=[256, 256], pre=False):
-    if pre:
-        image_in = cv2.resize(image_in, (150, 150, 3), cv2.INTER_LINEAR) #cv2.INTER_AREA, cv2.INTER_CUBIC, cv2.INTER_LANCZOS4
+    # image_in = adjust_brightness(image_in, 0.5)
     if resize_shape != None:
         image = cv2.resize(image_in, dsize=(resize_shape[1], resize_shape[0]))
 
@@ -72,7 +78,7 @@ def transform_image(image_in, resize_shape=[256, 256], pre=False):
 def load_models():
     """Loads the trained models"""
     ### TO DO SPREMENI VSAK
-    checkpoint_path = os.path.join("/home/maja/ros/src/dis_tutorial3/scripts", "checkpoints")
+    checkpoint_path = os.path.join("/home/anton/ros/src/dis_tutorial3/scripts", "checkpoints")
     run_name = "DRAEM_test_0.0001_720_bs8_real_"
 
     model = ReconstructiveSubNetwork(in_channels=3, out_channels=3)
@@ -102,16 +108,34 @@ def inference(image, model, model_seg):
     result_mask = torch.softmax(out_mask, dim=1)
     result_mask_cv = result_mask[0 ,1 ,: ,:].detach().cpu().numpy()# comment for efficiency
 
+    # plt.imshow(result_mask_cv)
+    # plt.show()
+    print(result_mask_cv.shape)
+    result_mask_cv = np.array([result_mask_cv, result_mask_cv, result_mask_cv]).transpose(1, 2, 0)
+    normalized_image = cv2.normalize(result_mask_cv, None, 0, 255, cv2.NORM_MINMAX)
+
+    mask_map = cv2.applyColorMap(normalized_image.astype(np.uint8), cv2.COLORMAP_HOT)
+    # plt.imshow(mask_map)
+    # plt.show()
+
+    result_mask1 = image.transpose(1, 2, 0) + 0.3*mask_map
+    print(result_mask1.shape)
+    cv2.imshow("result_mask1", result_mask1)
+    cv2.waitKey(1000)
+    cv2.destroyAllWindows()
+
     out_mask_averaged = torch.nn.functional.avg_pool2d(result_mask[: ,1: ,: ,:], 21, stride=1, padding=21 // 2).cpu().detach().numpy()
     image_score = np.max(out_mask_averaged)
     
     prediction = 0 if image_score < 0.016 else 1 # 0.02793829
     
-    return prediction, result_mask_cv, image_score
+    return prediction, result_mask, image_score
 
 if __name__ == "__main__":
     
-    real_image = cv2.imread(os.path.join(os.getcwd(), "data", "real", "test", "good", "real_image4085.png"), cv2.IMREAD_COLOR)
+    real_image = cv2.imread(os.path.join(os.getcwd(), "lisa.jpg"), cv2.IMREAD_COLOR)
+    # plt.imshow(real_image)
+    # plt.show()
 
     import time
     
@@ -120,13 +144,14 @@ if __name__ == "__main__":
     print("Loading time:", time.time() - start)
 
     start = time.time()
-    label, mask = inference(real_image, model, model_seg)
+    label, mask, score = inference(real_image, model, model_seg)
     print("Inference time:", time.time() - start)
     print("label:", label)
+    print("score:", score)
 
     import matplotlib.pyplot as plt
-    plt.imshow(mask)
-    plt.show()
+    # plt.imshow(mask)
+    # plt.show()
 
     # def test_inference(path, im_list, model, model_seg, truth=None):
     #     predictions = []
