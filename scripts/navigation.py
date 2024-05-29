@@ -6,50 +6,11 @@ from skimage.morphology import skeletonize
 
 image = cv2.imread(os.path.join(os.getcwd(), "..", "maps", "mapademo3.pgm"), cv2.IMREAD_GRAYSCALE)
 image_og = cv2.imread(os.path.join(os.getcwd(), "..", "maps", "mapademo3.pgm"), cv2.IMREAD_COLOR)
-# print(np.unique(image))
-
-# where = []
-# for i in np.unique(image):
-#     where.append(image == i)
-
-# fig = plt.figure(figsize=(20, 5))
-# for i, w in enumerate(where):
-#     fig.add_subplot(1, len(where)+1, i+1)
-#     plt.title(str(np.unique(image)[i]))
-#     plt.imshow(w, cmap='gray')
-
-# fig.add_subplot(1, len(where)+1, len(where)+1)
-# plt.imshow(image)
-# plt.show()
-
-# točka ne sme bit na 0 in 205, lahko je samo na 254
-
-# valid_space = np.pad(image == 254, pad_width=1, mode='constant', constant_values=0).astype(np.uint8)
-
-# kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (14, 14))
-# eroded = cv2.erode(valid_space, kernel, iterations=1)
-
-# kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-# dilated = cv2.dilate(eroded, kernel2, iterations=1)
-
-# skeleton = skeletonize(eroded)
-# skeleton_og = skeletonize(valid_space)
-
-# fig = plt.figure(figsize=(10, 5))
-# fig.add_subplot(1, 4, 1)
-# plt.imshow(valid_space, cmap='gray')
-# fig.add_subplot(1, 4, 2)
-# plt.imshow(eroded, cmap='gray')
-# fig.add_subplot(1, 4, 3)
-# plt.imshow(dilated, cmap='gray')
-# fig.add_subplot(1, 4, 4)
-# plt.imshow(skeleton, cmap='gray')
-# fig.add_subplot(2, 4, 1)
-# plt.imshow(skeleton_og, cmap='gray')
-# plt.show()
 
 def get_space(map):
-    wierd = (map == 255).astype(np.uint8)
+    # print(map.shape)    
+    wierd = (map == 255)
+    # print(wierd)
     image = map - wierd
     # print(image.shape)
 
@@ -69,45 +30,6 @@ def skeletonize_map(map):
 
     return skeleton
 
-# print(image.shape)
-skeleton = skeletonize_map(image)
-
-def choose_points(image):
-    # mask = np.zeros((image.shape[0], image.shape[1], 3))
-    # points = np.where(image == 1)
-    # mask[points] = [255, 0, 0]
-    potential_points = np.argwhere(image == 1)
-    points = []
-    mask = np.zeros(image.shape)
-    counter = 0
-    for i, c in enumerate(potential_points):
-        # print(c)
-        px = image[c[0], c[1]]
-        if px == 1:
-            if counter == 0:
-                mask[c[0], c[1]] = 1
-                points.append(c)
-                counter = 10
-            else:
-                counter -= 1
-        # print(counter)
-    return points, mask
-
-points, mask = choose_points(skeleton)
-
-# image_og = np.pad(image, pad_width=1, constant_values=1)
-# print(np.min(image), np.min(skeleton), np.min(mask))
-# print(image_og.shape, skeleton.shape, mask.shape)
-
-# image_i = np.transpose(np.array([image_og, image_og, image_og]), (1, 2, 0))
-image_i = image_og
-skeleton_i = np.transpose(np.array([skeleton, skeleton, skeleton]), (1, 2, 0)).astype(np.int8)*255
-mask_i = np.transpose(np.array([mask, np.zeros(mask.shape), np.zeros(mask.shape)]), (1, 2, 0)).astype(np.int8)*255
-
-merge = image_i - skeleton_i + mask_i
-# print(points)
-# plt.imshow(merge)
-# plt.show()
 
 
 def point_tf(y, x):
@@ -130,7 +52,7 @@ def point_tf(y, x):
     x = x * LR_len + UL[0]
     y = y * UD_len + UL[1]
     
-    return x, y
+    return [x, y]
 
 def inv_point_tf(x, y):
     shape = (6.19, -7.64)
@@ -165,6 +87,9 @@ def inv_point_tf(x, y):
 # ip10 = inv_point_tf(-2.16, -2.59)
 # ip11 = inv_point_tf(4.03, -2.59)
 
+# point00 = inv_point_tf(0, 0)
+# print("00", point00)
+
 # print(p00, p01, p10, p11)
 # print(ip00, ip01, ip10, ip11)
 
@@ -179,8 +104,8 @@ def closest_man(array, origin=(0, 0)):
         
     return array[closest_i]
 
-def find_start(skeleton, start=(0, 0)):
-    start_point = inv_point_tf(*start)
+def find_start(skeleton, start):
+    start_point = start
     if skeleton[start_point[0], start_point[1]] == 1:
         return start_point
     found_candidate = False
@@ -201,66 +126,73 @@ def find_start(skeleton, start=(0, 0)):
     
     return point
 
-def find_next(skeleton, start=(0, 0), rem=False):
-    start_point = start
-    found_candidates = False
-    padding = 1
-    if skeleton[start_point[0], start_point[1]] == 1:
-        skeleton[start_point[0], start_point[1]] = 0
-    while not found_candidates:
-        candidates = skeleton[start_point[0]-padding:start_point[0]+padding+1, start_point[1]-padding:start_point[1]+padding+1]
-        if np.any(candidates == 1):
-            arg_candidates = np.transpose(np.nonzero(candidates == 1)).T
-            arg_candidates[0] += start_point[0]-padding
-            arg_candidates[1] += start_point[1]-padding
-            arg_candidates = arg_candidates.T
-            found_candidates = True
-        else:
-            padding += 1
+def get_points(map, spacing=15):
 
-    return arg_candidates, skeleton
+    skeleton = skeletonize_map(map)
+
+    start_point = find_start(skeleton, inv_point_tf(0, 0))
+    
+    points = [start_point]
+    current_point = start_point
+    current_distance = 0
+
+    # Find skeleton coordinates
+    skeleton_indices = np.argwhere(skeleton)
+    while len(skeleton_indices) > 0:
+        # Calculate distances to skeleton points
+
+        distances = np.linalg.norm(skeleton_indices - current_point, axis=1)
+
+        min_index = np.argmin(distances)
+        nearest_point = skeleton_indices[min_index]
+        nearest_distance = distances[min_index]
+
+        # Move to the nearest skeleton point
+        current_point = tuple(nearest_point)
+        current_distance += nearest_distance
+
+        # If current distance exceeds spacing, add the point to the list
+        if current_distance >= spacing:
+            points.append(current_point)
+            current_distance = 0
+
+        # Remove the used point from skeleton_indices
+        skeleton_indices = np.delete(skeleton_indices, min_index, axis=0)
+
+    out = []
+    for y, x in points:
+        po = point_tf(x, y)
+        po.append((np.random.rand(1)*2*np.pi)[0])
+        out.append(po)
+        print(po)
+    points = out
+
+    return points
 
 
-def create_path(skeleton, start=(0,0)):
-    prev = skeleton.copy()
-    skeleton = skeleton
-    start = find_start(skeleton)
-    print("Start", start)
-    path = [start]
-    next_candidates, skeleton = find_next(skeleton, start=start)
-    next_candidates = [next_candidates[-1]]
-    print(next_candidates)
-    # plt.imshow(skeleton)
-    # plt.show(block=False)
-    # plt.pause(0.001)
-    # plt.close()
-    while len(np.transpose(np.nonzero(skeleton == 1))) != 0:
-        print(next_candidates)
-        if len(next_candidates) == 1:
-            next_candidates, skeleton = find_next(skeleton, start=next_candidates[0])
-        else:
-            next_candidates, skeleton = find_next(skeleton, start=next_candidates[0])
-        plt.imshow(skeleton)
-        plt.show(block=False)
-        plt.pause(0.001)
-        plt.close()
-        # skeleton = skeleton*0
-        if next_candidates[0][0] < 0:
-            break
+def draw_path(image, points):
+    skeli = skeletonize_map(image)
+    image = np.transpose(np.array([image, image, image]), (1, 2, 0))
+    skeli = np.transpose(np.array([skeli, skeli, skeli]), (1, 2, 0)).astype(np.int8)*255
+    mask = np.zeros(skeli.shape)
+    # print(points)
+    for i in points:
+        # print(i)
+        y = i[0]
+        x = i[1]
+        mask[y, x] = [1, 0, 0]
+        # plt.imshow(mask)
+        # # plt.show()
+        # plt.show(block=False)
+        # plt.pause(0.00001)
+        # plt.close()
+    mask_i = mask.astype(np.int8)*255
+    merge = image - skeli + mask_i
 
-    fig = plt.figure(figsize=(10, 5))
-    fig.add_subplot(1, 2, 1)
-    plt.imshow(skeleton)
-    fig.add_subplot(1, 2, 2)
-    plt.imshow(prev)
+    plt.imshow(merge)
     plt.show()
-    return path
 
-# print(image.shape)
-import time
-stime = time.time()
-path = create_path(skeleton)
-print("Execution time:", (time.time()-stime)*len(skeleton == True))
-
-def choze():
-    ...
+if __name__ == "__main__":
+    path = get_points(image)
+    print(path)
+    # draw_path(image, path)

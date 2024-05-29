@@ -47,6 +47,8 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 
+from navigation import get_points
+
 class TaskResult(Enum):
     UNKNOWN = 0
     SUCCEEDED = 1
@@ -923,7 +925,8 @@ def main(args=None):
     goal_pose.header.frame_id = 'map'
     goal_pose.header.stamp = rc.get_clock().now().to_msg()
 
-    list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[2.17, 0.45, -0.00],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
+    # list_of_points = [[1.0, -2.0, 1.57],[2.5, -1.25, -1.8],[2.17, 0.45, -0.00],[1.0, 0.0, -1.57],[0.35, 3.25, -1.57],[-1.5, 4.5, 0.0],[-1.0, 1.2, 0.0],[1.1, 1.69, -1.57],[-1.55, -0.65, -1.57],[-0.27, -0.27, 0.0]]
+    list_of_points = get_points(cv2.imread("/home/anton/ros/src/dis_tutorial3/maps/mapademo3.pgm", cv2.IMREAD_GRAYSCALE))
     # publish to /when_to_detect_rings
     msg = Bool()
     msg.data = True
