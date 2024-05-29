@@ -162,7 +162,7 @@ def get_points(map, spacing=15):
     out = []
     for y, x in points:
         po = point_tf(x, y)
-        po.append((np.random.rand(1)*2*np.pi)[0])
+        po.append(((np.random.rand(1)-0.5)*np.pi)[0])
         out.append(po)
         print(po)
     points = out
