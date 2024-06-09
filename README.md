@@ -1,3 +1,7 @@
+# Modifyed by team Nu
+
+## Some segments of the implementation are missing, eg. models, dataset, simulation launch file with top camera ...
+
 # Tutorial 3: The Turtlebot 4
 
 #### Development of Inteligent Systems, 2024
